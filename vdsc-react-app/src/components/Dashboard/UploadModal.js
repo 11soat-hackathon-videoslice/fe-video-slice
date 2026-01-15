@@ -1,6 +1,21 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { getCurrentUser } from 'aws-amplify/auth';
 import { videoAPI, uploadToS3 } from '../../services/api';
 import './Dashboard.css';
+
+// Generate short UUID (12 characters)
+const generateShortUUID = () => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  const timestamp = Date.now().toString(36);
+  result += timestamp;
+  
+  while (result.length < 12) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  
+  return result.substring(0, 12);
+};
 
 const UploadModal = ({ onClose, onSuccess }) => {
   const [file, setFile] = useState(null);
@@ -8,10 +23,16 @@ const UploadModal = ({ onClose, onSuccess }) => {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState('');
+  const [videoId, setVideoId] = useState('');
+  const [uploadInfo, setUploadInfo] = useState(null);
+  const [preparingUpload, setPreparingUpload] = useState(false);
+  const [cancelMessage, setCancelMessage] = useState('');
+  const uploadAbortController = useRef(null);
   
   // Video metadata
   const [videoDuration, setVideoDuration] = useState(0);
   const [videoExtension, setVideoExtension] = useState('');
+  const [videoResolution, setVideoResolution] = useState({ width: 0, height: 0 });
   
   // Form data
   const [formData, setFormData] = useState({
@@ -56,14 +77,34 @@ const UploadModal = ({ onClose, onSuccess }) => {
       window.URL.revokeObjectURL(video.src);
       setVideoDuration(video.duration);
       
+      // Get video resolution
+      const width = video.videoWidth;
+      const height = video.videoHeight;
+      setVideoResolution({ width, height });
+      
+      console.log('Video resolution:', width, 'x', height);
+      
       // Set initial endTime based on duration
       const maxDuration = formData.timeUnit === 'milliseconds' ? 
         Math.floor(video.duration * 1000) : 
         Math.floor(video.duration);
       
+      // Determine initial quality based on resolution
+      let initialQuality = 'low';
+      if (height >= 1080) {
+        initialQuality = 'medium';
+        console.log('Video is 1080p or higher - all qualities available');
+      } else if (height >= 720) {
+        initialQuality = 'medium';
+        console.log('Video is 720p - medium and low available');
+      } else {
+        console.log('Video is below 720p - only low available');
+      }
+      
       setFormData(prev => ({
         ...prev,
-        endTime: maxDuration
+        endTime: maxDuration,
+        quality: initialQuality
       }));
     };
 
@@ -96,12 +137,13 @@ const UploadModal = ({ onClose, onSuccess }) => {
     }
   };
 
-  const handleFileSelect = (selectedFile) => {
+  const handleFileSelect = async (selectedFile) => {
     setError('');
+    setUploadInfo(null);
     
     // Validate file type
-    const extension = selectedFile.name.split('.').pop().toLowerCase();
-    if (!ALLOWED_FORMATS.includes(extension)) {
+    const extensionFile = selectedFile.name.split('.').pop().toLowerCase();
+    if (!ALLOWED_FORMATS.includes(extensionFile)) {
       setError(`Formato não suportado. Permitidos: ${ALLOWED_FORMATS.join(', ')}`);
       return;
     }
@@ -113,14 +155,42 @@ const UploadModal = ({ onClose, onSuccess }) => {
     }
 
     setFile(selectedFile);
-    setVideoExtension(extension);
+    setVideoExtension(extensionFile);
     
-    // Set initial file name (without extension)
+    // Generate unique video ID
+    const newVideoId = generateShortUUID();
+    setVideoId(newVideoId);
+    
+    // Set original file name (without extension) - read-only
     const nameWithoutExt = selectedFile.name.replace(/\.[^/.]+$/, "");
     setFormData(prev => ({
       ...prev,
       fileName: nameWithoutExt
     }));
+
+    // Immediately get presigned upload URL
+    setPreparingUpload(true);
+    try {
+      const uploadFileName = `${newVideoId}.${extensionFile}`;
+      console.log('Requesting upload URL for:', uploadFileName);
+      
+      const uploadData = await videoAPI.getUploadUrl(uploadFileName);
+      console.log('Upload data received:', uploadData);
+      
+      setUploadInfo({
+        uploadUrl: uploadData.uploadUrl,
+        fileName: uploadData.fileName,
+        s3Key: uploadData.s3Key,
+        expiresIn: uploadData.expiresIn
+      });
+    } catch (err) {
+      console.error('Error getting upload URL:', err);
+      setError('Erro ao preparar upload. Tente novamente.');
+      setFile(null);
+      setVideoId('');
+    } finally {
+      setPreparingUpload(false);
+    }
   };
 
   const handleInputChange = (e) => {
@@ -169,21 +239,25 @@ const UploadModal = ({ onClose, onSuccess }) => {
       Math.floor(videoDuration);
   };
 
+  const isQualityAvailable = (quality) => {
+    const height = videoResolution.height;
+    if (height >= 1080) {
+      // 1080p ou mais: todas as qualidades disponíveis
+      return true;
+    } else if (height >= 720) {
+      // 720p: média e baixa
+      return quality === 'medium' || quality === 'low';
+    } else {
+      // Abaixo de 720p: somente baixa
+      return quality === 'low';
+    }
+  };
+
   const validateForm = async () => {
     const errors = {};
     
     if (!file) {
       errors.file = 'Selecione um arquivo';
-    }
-    
-    if (!formData.fileName.trim()) {
-      errors.fileName = 'Nome do arquivo é obrigatório';
-    } else {
-      // Check if file name already exists
-      const exists = await videoAPI.checkVideoExists(formData.fileName);
-      if (exists) {
-        errors.fileName = 'Já existe um arquivo com este nome. Escolha outro nome.';
-      }
     }
     
     const maxDuration = getMaxDuration();
@@ -235,6 +309,17 @@ const UploadModal = ({ onClose, onSuccess }) => {
     return Object.keys(errors).length === 0;
   };
 
+  const handleCancelUpload = () => {
+    if (uploading && uploadAbortController.current) {
+      uploadAbortController.current.abort();
+      uploadAbortController.current = null;
+    }
+    setCancelMessage('Upload Cancelado');
+    setTimeout(() => {
+      onClose();
+    }, 1500);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -244,56 +329,91 @@ const UploadModal = ({ onClose, onSuccess }) => {
       return;
     }
     
+    // Check if we have upload info
+    if (!uploadInfo || !uploadInfo.uploadUrl) {
+      setError('Informações de upload não disponíveis. Tente selecionar o arquivo novamente.');
+      return;
+    }
+
     setUploading(true);
     setUploadProgress(0);
+    uploadAbortController.current = new AbortController();
     
     try {
-      // Step 1: Get presigned URL
-      const { uploadUrl, videoId } = await videoAPI.getUploadUrl(
-        `${formData.fileName}.${videoExtension}`,
-        file.type
-      );
-      
-      // Step 2: Upload file to S3
-      await uploadToS3(uploadUrl, file, (progress) => {
+      // Step 1: Upload file to S3 using pre-obtained URL
+      console.log('Uploading file to S3 with name:', `${videoId}.${videoExtension}`);
+      await uploadToS3(uploadInfo.uploadUrl, file, (progress) => {
         setUploadProgress(progress);
-      });
+      }, uploadAbortController.current.signal);
       
-      // Step 3: Send metadata to API Gateway
-      const videoMetadata = {
-        id: videoId,
-        fileName: `${formData.fileName}.${videoExtension}`,
-        fileSize: file.size,
-        duration: videoDuration,
-        uploadDate: new Date().toISOString(),
-        status: 'pending',
-        timeUnit: formData.timeUnit,
-        startTime: parseFloat(formData.startTime),
-        endTime: parseFloat(formData.endTime),
-        interval: formData.interval,
-        quality: formData.quality,
-        retries: 0,
-        extension: videoExtension
+      // Step 2: Get current user ID
+      const user = await getCurrentUser();
+      const userId = user.userId;
+      
+      // Map quality to API format
+      const qualityMap = {
+        'high': 'high',
+        'medium': 'medium',
+        'low': 'low'
       };
       
-      await videoAPI.createVideo(videoMetadata);
+      // Parse interval to array format
+      const timeIntervalArray = formData.interval.split(',').map(i => i.trim());
+      
+      // Format timestamp as YYYY-MM-DD HH:mm:ss
+      const now = new Date();
+      const timestamp = now.getFullYear() + '-' + 
+        String(now.getMonth() + 1).padStart(2, '0') + '-' + 
+        String(now.getDate()).padStart(2, '0') + ' ' + 
+        String(now.getHours()).padStart(2, '0') + ':' + 
+        String(now.getMinutes()).padStart(2, '0') + ':' + 
+        String(now.getSeconds()).padStart(2, '0');
+      
+      // Step 3: Send metadata to API Gateway
+      console.log('Sending metadata to API...');
+      const videoMetadata = {
+        videoId: videoId,
+        fileName: formData.fileName,
+        extensionFile: videoExtension,
+        status: 'uploaded',
+        created: timestamp,
+        userId: userId,
+        totalTime: Math.floor(videoDuration),
+        unitTime: formData.timeUnit === 'seconds' ? 's' : 'ms',
+        startTime: parseFloat(formData.startTime),
+        endTime: parseFloat(formData.endTime),
+        timeInterval: timeIntervalArray,
+        maxRetry: parseInt(process.env.REACT_APP_MAX_RETRY || '3'),
+        retries: 0,
+        quality: qualityMap[formData.quality] || 'medium'
+      };
+      
+      await videoAPI.uploadVideoMetadata(videoMetadata);
       
       // Success!
       onSuccess();
     } catch (err) {
+      if (err.name === 'AbortError' || err.message === 'Upload cancelado') {
+        console.log('Upload was cancelled by user');
+        return;
+      }
       console.error('Upload error:', err);
       setError(err.message || 'Erro ao fazer upload. Tente novamente.');
     } finally {
       setUploading(false);
       setUploadProgress(0);
+      uploadAbortController.current = null;
     }
   };
 
   const isFormValid = () => {
     return file && 
-           formData.fileName.trim() && 
+           videoId && 
+           uploadInfo &&
+           uploadInfo.uploadUrl &&
            formData.interval.trim() &&
-           Object.keys(validationErrors).length === 0;
+           Object.keys(validationErrors).length === 0 &&
+           !preparingUpload;
   };
 
   return (
@@ -301,9 +421,14 @@ const UploadModal = ({ onClose, onSuccess }) => {
       <div className="modal-content">
         <div className="modal-header">
           <h2>Upload Novo Vídeo</h2>
-          <button className="modal-close" onClick={onClose}>×</button>
+          <button className="modal-close" onClick={uploading ? handleCancelUpload : onClose}>×</button>
         </div>
         
+        {cancelMessage ? (
+          <div className="cancel-message-container">
+            <div className="cancel-message">{cancelMessage}</div>
+          </div>
+        ) : (
         <form onSubmit={handleSubmit} className="upload-form">
           {/* Drag and Drop Area */}
           <div 
@@ -332,12 +457,23 @@ const UploadModal = ({ onClose, onSuccess }) => {
                   Formatos aceitos: {ALLOWED_FORMATS.join(', ')} | Máx: 500MB
                 </p>
               </>
+            ) : preparingUpload ? (
+              <>
+                <div className="dropzone-icon">⏳</div>
+                <p className="dropzone-text">Preparando upload...</p>
+                <p className="dropzone-hint">Obtendo URL de upload</p>
+              </>
             ) : (
               <>
                 <div className="dropzone-icon">✓</div>
                 <p className="dropzone-text file-selected">{file.name}</p>
                 <p className="dropzone-hint">
                   {(file.size / (1024 * 1024)).toFixed(2)} MB
+                  {uploadInfo && uploadInfo.expiresIn && (
+                    <span style={{ marginLeft: '8px', color: '#667eea' }}>
+                      • Link expira em {uploadInfo.expiresIn}
+                    </span>
+                  )}
                 </p>
               </>
             )}
@@ -353,6 +489,14 @@ const UploadModal = ({ onClose, onSuccess }) => {
               <div className="form-section">
                 <h3>Propriedades do Arquivo</h3>
                 <div className="info-grid">
+                  <div className="info-item">
+                    <label>ID do Vídeo:</label>
+                    <span className="video-id-display">{videoId}</span>
+                  </div>
+                  <div className="info-item">
+                    <label>Nome Original:</label>
+                    <span>{formData.fileName}</span>
+                  </div>
                   <div className="info-item">
                     <label>Extensão:</label>
                     <span>{videoExtension}</span>
@@ -372,22 +516,6 @@ const UploadModal = ({ onClose, onSuccess }) => {
               {/* Editable Properties */}
               <div className="form-section">
                 <h3>Configurações de Processamento</h3>
-                
-                <div className="form-group">
-                  <label htmlFor="fileName">Nome do Arquivo *</label>
-                  <input
-                    type="text"
-                    id="fileName"
-                    name="fileName"
-                    value={formData.fileName}
-                    onChange={handleInputChange}
-                    className={validationErrors.fileName ? 'error' : ''}
-                    placeholder="nome-do-arquivo"
-                  />
-                  {validationErrors.fileName && (
-                    <div className="field-error">{validationErrors.fileName}</div>
-                  )}
-                </div>
 
                 <div className="form-row">
                   <div className="form-group">
@@ -411,10 +539,19 @@ const UploadModal = ({ onClose, onSuccess }) => {
                       value={formData.quality}
                       onChange={handleInputChange}
                     >
+                      <option value="high" disabled={!isQualityAvailable('high')}>
+                        Alta {!isQualityAvailable('high') && '(Indisponível)'}
+                      </option>
+                      <option value="medium" disabled={!isQualityAvailable('medium')}>
+                        Média {!isQualityAvailable('medium') && '(Indisponível)'}
+                      </option>
                       <option value="low">Baixa</option>
-                      <option value="medium">Média</option>
-                      <option value="high">Alta</option>
                     </select>
+                    {videoResolution.height > 0 && (
+                      <small className="help-text">
+                        Resolução do vídeo: {videoResolution.width}x{videoResolution.height}
+                      </small>
+                    )}
                   </div>
                 </div>
 
@@ -496,8 +633,7 @@ const UploadModal = ({ onClose, onSuccess }) => {
             <button 
               type="button" 
               className="btn-secondary"
-              onClick={onClose}
-              disabled={uploading}
+              onClick={handleCancelUpload}
             >
               Cancelar
             </button>
@@ -510,6 +646,7 @@ const UploadModal = ({ onClose, onSuccess }) => {
             </button>
           </div>
         </form>
+        )}
       </div>
     </div>
   );

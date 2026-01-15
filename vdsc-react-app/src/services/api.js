@@ -39,25 +39,74 @@ const getCurrentUserId = async () => {
   }
 };
 
+// Helper function to parse DynamoDB format to JavaScript
+const parseDynamoDBItem = (item) => {
+  if (!item) return null;
+  
+  // Check if item is already in JavaScript format (has direct properties like videoId, fileName, etc.)
+  if (item.videoId || item.fileName || item.userId) {
+    return item; // Already parsed, return as is
+  }
+  
+  // Otherwise, parse DynamoDB format
+  const parsed = {};
+  
+  for (const [key, value] of Object.entries(item)) {
+    if (value.S !== undefined) {
+      // String
+      parsed[key] = value.S;
+    } else if (value.N !== undefined) {
+      // Number
+      parsed[key] = parseFloat(value.N);
+    } else if (value.BOOL !== undefined) {
+      // Boolean
+      parsed[key] = value.BOOL;
+    } else if (value.L !== undefined) {
+      // List
+      parsed[key] = value.L.map(item => {
+        if (item.S !== undefined) return item.S;
+        if (item.N !== undefined) return parseFloat(item.N);
+        if (item.M !== undefined) return parseDynamoDBItem(item.M);
+        return item;
+      });
+    } else if (value.M !== undefined) {
+      // Map
+      parsed[key] = parseDynamoDBItem(value.M);
+    } else if (value.NULL !== undefined) {
+      // Null
+      parsed[key] = null;
+    }
+  }
+  
+  return parsed;
+};
+
 // Helper function to map API response to table format
 const mapVideoFromAPI = (apiVideo) => {
+  // Parse DynamoDB format if needed (function now handles both formats)
+  const video = parseDynamoDBItem(apiVideo);
+  
+  console.log('Original video item:', apiVideo);
+  console.log('Parsed video:', video);
+  
   return {
-    id: apiVideo.id,
-    fileName: apiVideo.fileName,
-    uploadDate: apiVideo.created,
-    fileSize: null, // Not provided in API response
-    duration: apiVideo.totalTime,
-    status: apiVideo.status,
-    timeUnit: apiVideo.unitTime,
-    startTime: apiVideo.startTime,
-    endTime: apiVideo.endTime,
-    interval: Array.isArray(apiVideo.timeInterval) 
-      ? apiVideo.timeInterval.join(', ') 
-      : apiVideo.timeInterval,
-    quality: apiVideo.quality,
-    maxRetries: apiVideo.maxRetry,
-    retries: apiVideo.retries,
-    logs: apiVideo.logs || []
+    id: video.videoId || video.id,
+    fileName: video.fileName,
+    uploadDate: video.created || video.uploadDate,
+    fileSize: video.fileSize || null,
+    duration: video.totalTime || video.duration,
+    status: video.status,
+    timeUnit: video.unitTime || video.timeUnit,
+    startTime: video.startTime,
+    endTime: video.endTime,
+    interval: Array.isArray(video.timeInterval) 
+      ? video.timeInterval.join(', ') 
+      : video.timeInterval,
+    quality: video.quality,
+    maxRetries: video.maxRetry || video.maxRetries,
+    retries: video.retries || 0,
+    logs: video.logs || [],
+    extensionFile: video.extensionFile || video.extension
   };
 };
 
@@ -67,28 +116,95 @@ export const videoAPI = {
   getVideos: async () => {
     try {
       const userId = await getCurrentUserId();
-      const url = `https://fj8aqi31jh.execute-api.us-east-1.amazonaws.com/prd/videos/list/${userId}`;
+      console.log('Current user ID:', userId);
+      
+      const url = `${apiConfig.apiUrl}${apiConfig.apiListByUserId}/${userId}`;
       console.log('Fetching videos from:', url);
       
-      const response = await axios.get(url, {
-        headers: {
-          'Content-Type': 'application/json'
+      const session = await fetchAuthSession();
+      console.log('Session:', session);
+      
+      const token = session.tokens?.idToken?.toString();
+      console.log('Token available:', !!token);
+      console.log('Token (first 50 chars):', token ? token.substring(0, 50) + '...' : 'NO TOKEN');
+      
+      const headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      };
+      
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+        console.log('Authorization header set');
+      } else {
+        console.warn('No token available for request');
+      }
+      
+      console.log('Request headers:', headers);
+      
+      const response = await axios.get(url, { 
+        headers,
+        validateStatus: function (status) {
+          return status < 500; // Resolve only if the status code is less than 500
         }
       });
       
+      console.log('Response status:', response.status);
       console.log('Videos response:', response.data);
       
-      // Parse the response and map to table format
-      if (response.data && response.data.items && Array.isArray(response.data.items)) {
-        const mappedVideos = response.data.items.map(mapVideoFromAPI);
-        console.log('Mapped videos:', mappedVideos);
-        return mappedVideos;
+      // Check for error status
+      if (response.status === 403) {
+        throw new Error('Acesso negado. Verifique suas permissões.');
       }
       
-      return [];
+      if (response.status >= 400) {
+        throw new Error(`Erro na API: ${response.status}`);
+      }
+      
+      // Parse DynamoDB response format
+      let items = [];
+      
+      if (response.data) {
+        // Check if response has Items array (DynamoDB format)
+        if (response.data.Items && Array.isArray(response.data.Items)) {
+          items = response.data.Items;
+          console.log('Found Items in DynamoDB format:', items.length);
+        }
+        // Check if response has items array (standard format)
+        else if (response.data.items && Array.isArray(response.data.items)) {
+          items = response.data.items;
+          console.log('Found items in standard format:', items.length);
+        }
+        // Check if response is directly an array
+        else if (Array.isArray(response.data)) {
+          items = response.data;
+          console.log('Response is direct array:', items.length);
+        }
+      }
+      
+      if (items.length === 0) {
+        console.log('No videos found');
+        return [];
+      }
+      
+      // Map videos to table format
+      const mappedVideos = items.map(mapVideoFromAPI);
+      console.log('Mapped videos:', mappedVideos);
+      return mappedVideos;
     } catch (error) {
       console.error('Error fetching videos:', error);
-      console.error('Error details:', error.response?.data);
+      console.error('Error message:', error.message);
+      console.error('Error response status:', error.response?.status);
+      console.error('Error response headers:', error.response?.headers);
+      console.error('Error response data:', error.response?.data);
+      console.error('Error config URL:', error.config?.url);
+      console.error('Error config headers:', error.config?.headers);
+      
+      // Re-throw with more context
+      if (error.response?.status === 403) {
+        throw new Error('Acesso negado. Verifique se você está autenticado e tem permissão.');
+      }
+      
       throw error;
     }
   },
@@ -118,12 +234,42 @@ export const videoAPI = {
   },
 
   // Get presigned URL for upload
-  getUploadUrl: async (fileName, fileType) => {
-    const response = await api.post('/videos/upload-url', {
-      fileName,
-      fileType
-    });
-    return response.data;
+  getUploadUrl: async (fileName) => {
+    try {
+      const url = `${apiConfig.apiUrl}${apiConfig.apiUploadUrl}/${encodeURIComponent(fileName)}`;
+      console.log('Getting upload URL from:', url);
+      
+      const session = await fetchAuthSession();
+      const token = session.tokens?.idToken?.toString();
+      
+      const headers = {
+        'Content-Type': 'application/json'
+      };
+      
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
+      const response = await axios.post(url, { headers });
+      
+      console.log('Upload URL response:', response.data);
+      
+      // Parse the body if it's a string
+      if (response.data.body && typeof response.data.body === 'string') {
+        const parsedBody = JSON.parse(response.data.body);
+        return {
+          uploadUrl: parsedBody.uploadUrl,
+          fileName: parsedBody.fileName,
+          s3Key: parsedBody.s3Key,
+          expiresIn: parsedBody.expiresIn
+        };
+      }
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error getting upload URL:', error);
+      throw error;
+    }
   },
 
   // Get presigned URL for download
@@ -140,21 +286,55 @@ export const videoAPI = {
     } catch (error) {
       return false;
     }
+  },
+
+  // Upload video metadata after S3 upload
+  uploadVideoMetadata: async (metadata) => {
+    try {
+      const url = `${apiConfig.apiUrl}${apiConfig.apiUploadMetadata}`;
+      console.log('Uploading video metadata to:', url);
+      console.log('Metadata:', metadata);
+      
+      const session = await fetchAuthSession();
+      const token = session.tokens?.idToken?.toString();
+      
+      const headers = {
+        'Content-Type': 'application/json'
+      };
+      
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
+      const response = await axios.post(url, metadata, { headers });
+      
+      console.log('Metadata upload response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error uploading metadata:', error);
+      throw error;
+    }
   }
 };
 
 // Upload file to S3 using presigned URL
-export const uploadToS3 = async (presignedUrl, file, onProgress) => {
+export const uploadToS3 = async (presignedUrl, file, onProgress, signal) => {
   return axios.put(presignedUrl, file, {
     headers: {
       'Content-Type': file.type
     },
+    signal: signal,
     onUploadProgress: (progressEvent) => {
       if (onProgress && progressEvent.total) {
         const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
         onProgress(percentCompleted);
       }
     }
+  }).catch(error => {
+    if (axios.isCancel(error) || error.name === 'CanceledError') {
+      throw new Error('Upload cancelado');
+    }
+    throw error;
   });
 };
 

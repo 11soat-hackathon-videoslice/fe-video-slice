@@ -30,5 +30,9 @@ export const amplifyConfig = {
 export const apiConfig = {
   baseURL: process.env.REACT_APP_API_GATEWAY_URL,
   region: process.env.REACT_APP_AWS_REGION || 'us-east-1',
-  tableName: process.env.REACT_APP_DYNAMODB_TABLE_NAME || 'VideoSlice'
+  tableName: process.env.REACT_APP_DYNAMODB_TABLE_NAME || 'VideoSlice',
+  apiUrl: process.env.REACT_APP_API_GATEWAY_URL,
+  apiListByUserId: process.env.REACT_APP_API_LIST_BY_USER_ID || '/videos/list/userId',
+  apiUploadUrl: process.env.REACT_APP_API_UPLOAD_URL || '/video/upload/url',
+  apiUploadMetadata: process.env.REACT_APP_API_UPLOAD_METADATA || '/video/upload'
 };
