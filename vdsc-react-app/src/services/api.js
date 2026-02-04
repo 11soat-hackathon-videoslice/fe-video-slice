@@ -250,22 +250,19 @@ export const videoAPI = {
         headers['Authorization'] = `Bearer ${token}`;
       }
       
-      const response = await axios.post(url, { headers });
+      const response = await axios.post(url, {}, { headers });
       
       console.log('Upload URL response:', response.data);
       
-      // Parse the body if it's a string
-      if (response.data.body && typeof response.data.body === 'string') {
-        const parsedBody = JSON.parse(response.data.body);
-        return {
-          uploadUrl: parsedBody.uploadUrl,
-          fileName: parsedBody.fileName,
-          s3Key: parsedBody.s3Key,
-          expiresIn: parsedBody.expiresIn
-        };
-      }
-      
-      return response.data;
+      // Response is already in JSON format with url, FileName, expiresIn, s3Key, action, method
+      return {
+        uploadUrl: response.data.url,
+        fileName: response.data.FileName,
+        s3Key: response.data.s3Key,
+        expiresIn: (response.data.expiresIn)/60 + " minutos",
+        action: response.data.action,
+        method: response.data.method
+      };
     } catch (error) {
       console.error('Error getting upload URL:', error);
       throw error;
