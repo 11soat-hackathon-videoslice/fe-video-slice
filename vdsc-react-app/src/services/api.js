@@ -311,6 +311,57 @@ export const videoAPI = {
       console.error('Error uploading metadata:', error);
       throw error;
     }
+  },
+
+  // Download video using videoId
+  downloadVideo: async (videoId) => {
+    try {
+      const fileName = `${videoId}.zip`;
+      const url = `${apiConfig.apiUrl}${apiConfig.apiDownloadUrl}/${encodeURIComponent(fileName)}`;
+      console.log('Getting download URL from:', url);
+
+      const session = await fetchAuthSession();
+      const token = session.tokens?.idToken?.toString();
+
+      const headers = {
+        'Content-Type': 'application/json'
+      };
+
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const response = await axios.post(url, {}, { headers });
+
+      console.log('Download URL response:', response.data);
+
+      const downloadUrl = response.data.url;
+
+      if (!downloadUrl) {
+        throw new Error('URL de download não obtida');
+      }
+
+      // Fazer o download automaticamente
+      const downloadResponse = await axios.get(downloadUrl, {
+        responseType: 'blob'
+      });
+
+      // Criar um blob e fazer o download
+      const blobUrl = window.URL.createObjectURL(new Blob([downloadResponse.data]));
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.setAttribute('download', fileName);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+
+      console.log(`Download do arquivo ${fileName} iniciado`);
+      return { success: true, fileName };
+    } catch (error) {
+      console.error('Erro ao fazer download do vídeo:', error);
+      throw error;
+    }
   }
 };
 

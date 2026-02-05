@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { signOut, getCurrentUser, fetchUserAttributes } from 'aws-amplify/auth';
+import { signOut, fetchUserAttributes } from 'aws-amplify/auth';
 import { videoAPI } from '../../services/api';
 import VideoTable from './VideoTable';
 import UploadModal from './UploadModal';
+import LogsModal from './LogsModal';
 import './Dashboard.css';
 
 const Dashboard = ({ onSignOut }) => {
@@ -11,6 +12,8 @@ const Dashboard = ({ onSignOut }) => {
   const [error, setError] = useState('');
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [userName, setUserName] = useState('');
+  const [showLogsModal, setShowLogsModal] = useState(false);
+  const [selectedVideo, setSelectedVideo] = useState(null);
 
   useEffect(() => {
     loadUserData();
@@ -60,8 +63,7 @@ const Dashboard = ({ onSignOut }) => {
 
   const handleDownload = async (video) => {
     try {
-      const { url } = await videoAPI.getDownloadUrl(video.id);
-      window.open(url, '_blank');
+      await videoAPI.downloadVideo(video.id);
     } catch (err) {
       console.error('Error downloading video:', err);
       alert('Erro ao baixar vídeo. Tente novamente.');
@@ -69,9 +71,8 @@ const Dashboard = ({ onSignOut }) => {
   };
 
   const handleViewLogs = (video) => {
-    // TODO: Implementar visualização de logs
-    console.log('View logs for video:', video);
-    alert(`Logs para o vídeo: ${video.fileName}\n\nEsta funcionalidade será implementada em breve.`);
+    setSelectedVideo(video);
+    setShowLogsModal(true);
   };
 
   return (
@@ -126,6 +127,13 @@ const Dashboard = ({ onSignOut }) => {
         <UploadModal 
           onClose={() => setShowUploadModal(false)}
           onSuccess={handleUploadSuccess}
+        />
+      )}
+
+      {showLogsModal && selectedVideo && (
+        <LogsModal
+          video={selectedVideo}
+          onClose={() => setShowLogsModal(false)}
         />
       )}
     </div>

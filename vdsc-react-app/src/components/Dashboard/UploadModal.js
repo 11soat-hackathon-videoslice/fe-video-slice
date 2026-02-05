@@ -41,7 +41,7 @@ const UploadModal = ({ onClose, onSuccess }) => {
     startTime: 0,
     endTime: 0,
     interval: '',
-    quality: 'medium'
+    quality: 'high'
   });
   
   const [validationErrors, setValidationErrors] = useState({});
@@ -92,13 +92,16 @@ const UploadModal = ({ onClose, onSuccess }) => {
       // Determine initial quality based on resolution
       let initialQuality = 'low';
       if (height >= 1080) {
-        initialQuality = 'medium';
+        initialQuality = 'ultra';
         console.log('Video is 1080p or higher - all qualities available');
       } else if (height >= 720) {
+        initialQuality = 'high';
+        console.log('Video is 720p - ultra, high and lower qualities available');
+      } else if (height >= 480) {
         initialQuality = 'medium';
-        console.log('Video is 720p - medium and low available');
+        console.log('Video is 480p - medium and low available');
       } else {
-        console.log('Video is below 720p - only low available');
+        console.log('Video is below 480p - only low available');
       }
       
       setFormData(prev => ({
@@ -193,20 +196,201 @@ const UploadModal = ({ onClose, onSuccess }) => {
     }
   };
 
+  // Check if interval has multiple values (comma-separated)
+  const isMultipleIntervals = (intervalValue) => {
+    return intervalValue && intervalValue.includes(',');
+  };
+
+  // Calculate preview message
+  const calculatePreview = () => {
+    if (!formData.interval.trim() || !videoDuration) return null;
+
+    const maxDuration = getMaxDuration();
+    const intervals = formData.interval.split(',').map(i => parseFloat(i.trim())).filter(n => !isNaN(n));
+
+    if (intervals.length === 0) return null;
+
+    if (intervals.length === 1) {
+      // Single interval - regular capture
+      const interval = intervals[0];
+      if (interval <= 0 || interval > maxDuration) return null;
+
+      const startTime = parseFloat(formData.startTime) || 0;
+      const endTime = parseFloat(formData.endTime) || maxDuration;
+
+      if (startTime >= endTime) return null;
+
+      const moments = [];
+      for (let t = startTime; t <= endTime; t += interval) {
+        moments.push(t);
+      }
+
+      const unit = formData.timeUnit === 'milliseconds' ? 'ms' : 's';
+      const totalImages = moments.length;
+
+      if (moments.length <= 6) {
+        return `Serão capturadas ${totalImages} imagens nos momentos ${moments.map(m => `${m}${unit}`).join(', ')}`;
+      } else {
+        const first3 = moments.slice(0, 3).map(m => `${m}${unit}`).join(', ');
+        const last3 = moments.slice(-3).map(m => `${m}${unit}`).join(', ');
+        return `Serão capturadas ${totalImages} imagens nos momentos ${first3} ... ${last3}`;
+      }
+    } else {
+      // Multiple intervals - specific moments
+      const validMoments = intervals.filter(m => m >= 0 && m <= maxDuration).sort((a, b) => a - b);
+      const invalidMoments = intervals.filter(m => m < 0 || m > maxDuration);
+
+      if (validMoments.length === 0) return null;
+
+      const unit = formData.timeUnit === 'milliseconds' ? 'ms' : 's';
+      let message = `Serão capturadas ${validMoments.length} imagens nos momentos ${validMoments.map(m => `${m}${unit}`).join(', ')}`;
+
+      if (invalidMoments.length > 0) {
+        message += `. Os valores fora do intervalo válido serão desprezados`;
+      }
+
+      return message;
+    }
+  };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-    
-    // Clear validation error for this field
-    if (validationErrors[name]) {
-      setValidationErrors(prev => ({
+
+    // Handle interval changes - check if multiple values
+    if (name === 'interval') {
+      const hasMultiple = isMultipleIntervals(value);
+      const maxDuration = getMaxDuration();
+
+      if (hasMultiple) {
+        // Lock start and end times when multiple intervals
+        setFormData(prev => ({
+          ...prev,
+          [name]: value,
+          startTime: 0,
+          endTime: maxDuration
+        }));
+      } else {
+        setFormData(prev => ({
+          ...prev,
+          [name]: value
+        }));
+      }
+    } else if (name === 'startTime' || name === 'endTime') {
+      // Convert to number for time fields
+      const numValue = value === '' ? 0 : parseFloat(value);
+      setFormData(prev => ({
         ...prev,
-        [name]: null
+        [name]: numValue
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
       }));
     }
+
+    // Validate on change
+    setTimeout(() => validateField(name, value), 0);
+  };
+
+  const handleBlur = (e) => {
+    const { name, value } = e.target;
+    validateField(name, value);
+  };
+
+  const validateField = (fieldName, value) => {
+    const errors = { ...validationErrors };
+    const maxDuration = getMaxDuration();
+    const startTime = fieldName === 'startTime' ? parseFloat(value) : parseFloat(formData.startTime);
+    const endTime = fieldName === 'endTime' ? parseFloat(value) : parseFloat(formData.endTime);
+
+    switch (fieldName) {
+      case 'startTime':
+        const startVal = parseFloat(value);
+        if (isNaN(startVal) || startVal < 0) {
+          errors.startTime = 'Tempo inicial deve ser maior ou igual a 0';
+        } else if (startVal >= endTime) {
+          errors.startTime = 'Tempo inicial deve ser menor que o tempo final';
+        } else {
+          delete errors.startTime;
+        }
+        // Re-validate endTime when startTime changes
+        if (endTime <= startVal) {
+          errors.endTime = 'Tempo final deve ser maior que o tempo inicial';
+        } else if (endTime > maxDuration) {
+          errors.endTime = 'Tempo final deve ser menor ou igual à duração do vídeo';
+        } else {
+          delete errors.endTime;
+        }
+        break;
+
+      case 'endTime':
+        const endVal = parseFloat(value);
+        if (isNaN(endVal) || endVal > maxDuration) {
+          errors.endTime = 'Tempo final deve ser menor ou igual à duração do vídeo';
+        } else if (endVal <= startTime) {
+          errors.endTime = 'Tempo final deve ser maior que o tempo inicial';
+        } else {
+          delete errors.endTime;
+        }
+        // Re-validate startTime when endTime changes
+        if (startTime >= endVal) {
+          errors.startTime = 'Tempo inicial deve ser menor que o tempo final';
+        } else if (startTime < 0) {
+          errors.startTime = 'Tempo inicial deve ser maior ou igual a 0';
+        } else {
+          delete errors.startTime;
+        }
+        break;
+
+      case 'interval':
+        const intervalValue = fieldName === 'interval' ? value : formData.interval;
+        if (!intervalValue || !intervalValue.trim()) {
+          errors.interval = 'Intervalo é obrigatório';
+        } else {
+          const intervals = intervalValue.split(',').map(i => i.trim());
+          const hasMultiple = intervals.length > 1;
+
+          if (!hasMultiple) {
+            // Single value
+            const num = parseFloat(intervals[0]);
+            if (isNaN(num) || num <= 0) {
+              errors.interval = 'Intervalo deve ser um número maior que zero';
+            } else if (num > maxDuration) {
+              errors.interval = 'Intervalo deve ser menor ou igual à duração do vídeo';
+            } else {
+              delete errors.interval;
+            }
+          } else {
+            // Multiple values
+            const hasInvalid = intervals.some(interval => {
+              const num = parseFloat(interval);
+              return isNaN(num) || num < 0;
+            });
+
+            if (hasInvalid) {
+              errors.interval = 'Todos os valores devem ser números maiores ou iguais a zero';
+            } else {
+              const allOutOfRange = intervals.every(interval => {
+                const num = parseFloat(interval);
+                return num > maxDuration;
+              });
+
+              if (allOutOfRange) {
+                errors.interval = 'Pelo menos um valor deve estar dentro da duração do vídeo';
+              } else {
+                delete errors.interval;
+              }
+            }
+          }
+        }
+        break;
+
+      default:
+        break;
+    }
+
+    setValidationErrors(errors);
   };
 
   const handleTimeUnitChange = (e) => {
@@ -241,15 +425,21 @@ const UploadModal = ({ onClose, onSuccess }) => {
 
   const isQualityAvailable = (quality) => {
     const height = videoResolution.height;
-    if (height >= 1080) {
-      // 1080p ou mais: todas as qualidades disponíveis
-      return true;
-    } else if (height >= 720) {
-      // 720p: média e baixa
-      return quality === 'medium' || quality === 'low';
-    } else {
-      // Abaixo de 720p: somente baixa
-      return quality === 'low';
+    switch (quality) {
+      case 'ultra':
+        // Ultra (1080p): requires 1080p or higher
+        return height >= 1080;
+      case 'high':
+        // Alta (720p): requires 720p or higher
+        return height >= 720;
+      case 'medium':
+        // Média (480p): requires 480p or higher
+        return height >= 480;
+      case 'low':
+        // Baixa (360p): always available
+        return true;
+      default:
+        return false;
     }
   };
 
@@ -261,46 +451,54 @@ const UploadModal = ({ onClose, onSuccess }) => {
     }
     
     const maxDuration = getMaxDuration();
-    
-    if (formData.startTime < 0) {
-      errors.startTime = 'Tempo inicial não pode ser negativo';
+    const startTime = parseFloat(formData.startTime);
+    const endTime = parseFloat(formData.endTime);
+
+    // Validate startTime
+    if (isNaN(startTime) || startTime < 0) {
+      errors.startTime = 'Tempo inicial deve ser maior ou igual a 0';
+    } else if (startTime >= endTime) {
+      errors.startTime = 'Tempo inicial deve ser menor que o tempo final';
     }
     
-    if (formData.startTime >= maxDuration) {
-      errors.startTime = 'Tempo inicial deve ser menor que a duração do vídeo';
-    }
-    
-    if (formData.endTime <= formData.startTime) {
+    // Validate endTime
+    if (isNaN(endTime) || endTime > maxDuration) {
+      errors.endTime = 'Tempo final deve ser menor ou igual à duração do vídeo';
+    } else if (endTime <= startTime) {
       errors.endTime = 'Tempo final deve ser maior que o tempo inicial';
     }
     
-    if (formData.endTime > maxDuration) {
-      errors.endTime = 'Tempo final não pode exceder a duração do vídeo';
-    }
-    
+    // Validate interval
     if (!formData.interval.trim()) {
       errors.interval = 'Intervalo é obrigatório';
     } else {
-      // Validate interval format
       const intervals = formData.interval.split(',').map(i => i.trim());
-      const hasInvalidInterval = intervals.some(interval => {
-        const num = parseFloat(interval);
-        return isNaN(num) || num < 0;
-      });
-      
-      if (hasInvalidInterval) {
-        errors.interval = 'Intervalo deve conter apenas números positivos separados por vírgula';
-      }
-      
-      // If multiple intervals, validate they are within range
-      if (intervals.length > 1) {
-        const hasOutOfRange = intervals.some(interval => {
+      const hasMultiple = intervals.length > 1;
+
+      if (!hasMultiple) {
+        const num = parseFloat(intervals[0]);
+        if (isNaN(num) || num <= 0) {
+          errors.interval = 'Intervalo deve ser um número maior que zero';
+        } else if (num > maxDuration) {
+          errors.interval = 'Intervalo deve ser menor ou igual à duração do vídeo';
+        }
+      } else {
+        const hasInvalid = intervals.some(interval => {
           const num = parseFloat(interval);
-          return num < formData.startTime || num > formData.endTime;
+          return isNaN(num) || num < 0;
         });
-        
-        if (hasOutOfRange) {
-          errors.interval = 'Todos os intervalos devem estar entre o tempo inicial e final';
+
+        if (hasInvalid) {
+          errors.interval = 'Todos os valores devem ser números maiores ou iguais a zero';
+        } else {
+          const allOutOfRange = intervals.every(interval => {
+            const num = parseFloat(interval);
+            return num > maxDuration;
+          });
+
+          if (allOutOfRange) {
+            errors.interval = 'Pelo menos um valor deve estar dentro da duração do vídeo';
+          }
         }
       }
     }
@@ -352,6 +550,7 @@ const UploadModal = ({ onClose, onSuccess }) => {
       
       // Map quality to API format
       const qualityMap = {
+        'ultra': 'ultra',
         'high': 'high',
         'medium': 'medium',
         'low': 'low'
@@ -360,17 +559,19 @@ const UploadModal = ({ onClose, onSuccess }) => {
       // Parse interval to array format
       const timeIntervalArray = formData.interval.split(',').map(i => i.trim());
       
-      // Format timestamp as YYYY-MM-DD HH:mm:ss
+      // Format timestamp as ISO 8601 (2026-01-13T00:00:00Z)
       const now = new Date();
-      const timestamp = now.getFullYear() + '-' + 
-        String(now.getMonth() + 1).padStart(2, '0') + '-' + 
-        String(now.getDate()).padStart(2, '0') + ' ' + 
-        String(now.getHours()).padStart(2, '0') + ':' + 
-        String(now.getMinutes()).padStart(2, '0') + ':' + 
-        String(now.getSeconds()).padStart(2, '0');
-      
+      const timestamp = now.toISOString();
+
       // Step 3: Send metadata to API Gateway
       console.log('Sending metadata to API...');
+
+      // Create upload log entry
+      const uploadLog = {
+        timestamp: timestamp,
+        info: `Arquivo ${formData.fileName}.${videoExtension} carregado com sucesso!`
+      };
+
       const videoMetadata = {
         videoId: videoId,
         fileName: formData.fileName,
@@ -385,7 +586,8 @@ const UploadModal = ({ onClose, onSuccess }) => {
         timeInterval: timeIntervalArray,
         maxRetry: parseInt(process.env.REACT_APP_MAX_RETRY || '3'),
         retries: 0,
-        quality: qualityMap[formData.quality] || 'medium'
+        quality: qualityMap[formData.quality] || 'medium',
+        logs: [uploadLog]
       };
       
       await videoAPI.uploadVideoMetadata(videoMetadata);
@@ -407,13 +609,47 @@ const UploadModal = ({ onClose, onSuccess }) => {
   };
 
   const isFormValid = () => {
-    return file && 
-           videoId && 
-           uploadInfo &&
-           uploadInfo.uploadUrl &&
-           formData.interval.trim() &&
-           Object.keys(validationErrors).length === 0 &&
-           !preparingUpload;
+    // Basic checks
+    if (!file || !videoId || !uploadInfo || !uploadInfo.uploadUrl || !formData.interval.trim() || preparingUpload) {
+      return false;
+    }
+
+    // Check validation errors
+    if (Object.keys(validationErrors).length > 0) {
+      return false;
+    }
+
+    // Explicit time validations
+    const maxDuration = getMaxDuration();
+    const startTime = parseFloat(formData.startTime);
+    const endTime = parseFloat(formData.endTime);
+
+    if (isNaN(startTime) || startTime < 0 || startTime >= endTime) {
+      return false;
+    }
+
+    if (isNaN(endTime) || endTime > maxDuration || endTime <= startTime) {
+      return false;
+    }
+
+    // Validate interval
+    const intervals = formData.interval.split(',').map(i => i.trim());
+    if (intervals.length === 1) {
+      const num = parseFloat(intervals[0]);
+      if (isNaN(num) || num <= 0 || num > maxDuration) {
+        return false;
+      }
+    } else {
+      const hasValidValue = intervals.some(interval => {
+        const num = parseFloat(interval);
+        return !isNaN(num) && num >= 0 && num <= maxDuration;
+      });
+      if (!hasValidValue) {
+        return false;
+      }
+    }
+
+    return true;
   };
 
   return (
@@ -502,7 +738,7 @@ const UploadModal = ({ onClose, onSuccess }) => {
                     <span>{videoExtension}</span>
                   </div>
                   <div className="info-item">
-                    <label>Duração Máxima:</label>
+                    <label>Duração:</label>
                     <span>
                       {formData.timeUnit === 'milliseconds' 
                         ? `${Math.floor(videoDuration * 1000)} ms`
@@ -539,13 +775,18 @@ const UploadModal = ({ onClose, onSuccess }) => {
                       value={formData.quality}
                       onChange={handleInputChange}
                     >
+                      <option value="ultra" disabled={!isQualityAvailable('ultra')}>
+                        Ultra - 1080p {!isQualityAvailable('ultra') && '(Indisponível)'}
+                      </option>
                       <option value="high" disabled={!isQualityAvailable('high')}>
-                        Alta {!isQualityAvailable('high') && '(Indisponível)'}
+                        Alta - 720p {!isQualityAvailable('high') && '(Indisponível)'}
                       </option>
                       <option value="medium" disabled={!isQualityAvailable('medium')}>
-                        Média {!isQualityAvailable('medium') && '(Indisponível)'}
+                        Média - 480p {!isQualityAvailable('medium') && '(Indisponível)'}
                       </option>
-                      <option value="low">Baixa</option>
+                      <option value="low" disabled={!isQualityAvailable('low')}>
+                        Baixa - 360p
+                      </option>
                     </select>
                     {videoResolution.height > 0 && (
                       <small className="help-text">
@@ -564,10 +805,15 @@ const UploadModal = ({ onClose, onSuccess }) => {
                       name="startTime"
                       value={formData.startTime}
                       onChange={handleInputChange}
+                      onBlur={handleBlur}
                       min="0"
                       max={getMaxDuration()}
+                      disabled={isMultipleIntervals(formData.interval)}
                       className={validationErrors.startTime ? 'error' : ''}
                     />
+                    {isMultipleIntervals(formData.interval) && (
+                      <small className="help-text">Bloqueado: múltiplos intervalos definidos</small>
+                    )}
                     {validationErrors.startTime && (
                       <div className="field-error">{validationErrors.startTime}</div>
                     )}
@@ -581,10 +827,15 @@ const UploadModal = ({ onClose, onSuccess }) => {
                       name="endTime"
                       value={formData.endTime}
                       onChange={handleInputChange}
+                      onBlur={handleBlur}
                       min="0"
                       max={getMaxDuration()}
+                      disabled={isMultipleIntervals(formData.interval)}
                       className={validationErrors.endTime ? 'error' : ''}
                     />
+                    {isMultipleIntervals(formData.interval) && (
+                      <small className="help-text">Bloqueado: múltiplos intervalos definidos</small>
+                    )}
                     {validationErrors.endTime && (
                       <div className="field-error">{validationErrors.endTime}</div>
                     )}
@@ -599,14 +850,28 @@ const UploadModal = ({ onClose, onSuccess }) => {
                     name="interval"
                     value={formData.interval}
                     onChange={handleInputChange}
+                    onBlur={handleBlur}
                     className={validationErrors.interval ? 'error' : ''}
                     placeholder="Ex: 5 ou 10,20,30,40"
                   />
                   <small className="help-text">
-                    Valor único (ex: "5") para intervalo regular, ou valores separados por vírgula (ex: "10,20,30") para momentos específicos
+                    Preencher com único valor captura recorrente entre tempo inicial e tempo final. Ex: 10<br />
+                    Preencher com valores separados por vírgula para capturar momentos específicos. Ex: 10,21,22,33,55
                   </small>
                   {validationErrors.interval && (
                     <div className="field-error">{validationErrors.interval}</div>
+                  )}
+                  {calculatePreview() && !validationErrors.interval && (
+                    <div className="preview-message" style={{
+                      backgroundColor: '#d4edda',
+                      color: '#155724',
+                      padding: '10px 15px',
+                      borderRadius: '4px',
+                      marginTop: '8px',
+                      border: '1px solid #c3e6cb'
+                    }}>
+                      {calculatePreview()}
+                    </div>
                   )}
                 </div>
               </div>

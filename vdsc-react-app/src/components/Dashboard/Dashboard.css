@@ -378,8 +378,20 @@
   transform: scale(1.1);
 }
 
-.btn-download:hover {
+.btn-download:hover:not(:disabled) {
   border-color: #667eea;
+}
+
+.btn-download:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background-color: #f8f9fa;
+  border-color: #dee2e6;
+}
+
+.btn-download:disabled:hover {
+  background-color: #f8f9fa;
+  transform: none;
 }
 
 .btn-logs:hover {

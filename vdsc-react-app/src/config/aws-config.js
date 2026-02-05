@@ -34,5 +34,6 @@ export const apiConfig = {
   apiUrl: process.env.REACT_APP_API_GATEWAY_URL,
   apiListByUserId: process.env.REACT_APP_API_LIST_BY_USER_ID || '/videos/list/userId',
   apiUploadUrl: process.env.REACT_APP_API_UPLOAD_URL || '/video/upload/url',
+  apiDownloadUrl: process.env.REACT_APP_API_DOWNLOAD_URL || '/video/download/url',
   apiUploadMetadata: process.env.REACT_APP_API_UPLOAD_METADATA || '/video/upload'
 };

@@ -50,11 +50,10 @@ const VideoTable = ({ videos, loading, onDownload, onViewLogs }) => {
 
   const getStatusBadge = (status) => {
     const statusMap = {
-      'uploaded': { label: 'Carregado', className: 'status-uploaded' },
-      'pending': { label: 'Pendente', className: 'status-pending' },
-      'processing': { label: 'Processando', className: 'status-processing' },
-      'completed': { label: 'Concluído', className: 'status-completed' },
-      'failed': { label: 'Falhou', className: 'status-failed' }
+      'UPLOADED': { label: 'Carregado', className: 'status-uploaded' },
+      'PROCESSING': { label: 'Processando', className: 'status-processing' },
+      'FINISHED': { label: 'Concluído', className: 'status-completed' },
+      'FAILED': { label: 'Falhou', className: 'status-failed' }
     };
     const statusInfo = statusMap[status] || { label: status, className: 'status-unknown' };
     return <span className={`status-badge ${statusInfo.className}`}>{statusInfo.label}</span>;
@@ -358,7 +357,8 @@ const VideoTable = ({ videos, loading, onDownload, onViewLogs }) => {
                     <button 
                       className="btn-action btn-download"
                       onClick={() => onDownload(video)}
-                      title="Download"
+                      disabled={video.status !== 'FINISHED'}
+                      title={video.status === 'FINISHED' ? 'Download' : 'Disponível apenas quando o processamento for concluído'}
                     >
                       ⬇️
                     </button>
