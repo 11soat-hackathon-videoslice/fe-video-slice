@@ -375,7 +375,7 @@ const UploadModal = ({ onClose, onSuccess }) => {
         videoId: videoId,
         fileName: formData.fileName,
         extensionFile: videoExtension,
-        status: 'uploaded',
+        status: 'UPLOADED',
         created: timestamp,
         userId: userId,
         totalTime: Math.floor(videoDuration),
