@@ -30,7 +30,7 @@ on:
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION }}
-  NODE_VERSION: '18'
+  NODE_VERSION: '20'
   AMPLIFY_APP_ID: ${{ vars.AMPLIFY_APP_ID }}
 
 jobs:
