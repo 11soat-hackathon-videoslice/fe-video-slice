@@ -104,6 +104,7 @@ jobs:
             vdsc-react-app/junit.xml
 
       - name: Verificar Node.js disponível para SonarCloud
+        id: node-setup
         run: |
           echo "🔍 Verificando Node.js no PATH..."
           which node
@@ -114,6 +115,7 @@ jobs:
           NODE_PATH=$(which node)
           echo "Node.js PATH: ${NODE_PATH}"
           echo "NODE_EXECUTABLE=${NODE_PATH}" >> $GITHUB_ENV
+          echo "node_path=${NODE_PATH}" >> $GITHUB_OUTPUT
         working-directory: .
 
       - name: Verificar arquivos para SonarCloud
@@ -160,10 +162,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          NODE_OPTIONS: --max-old-space-size=4096
         with:
           projectBaseDir: .
           args: >
-            -Dsonar.nodejs.executable=${{ env.NODE_EXECUTABLE }}
+            -Dsonar.nodejs.executable=${{ steps.node-setup.outputs.node_path }}
             -Dsonar.javascript.node.maxspace=4096
 
   approval:
