@@ -123,7 +123,7 @@
 
 .log-message {
   font-size: 14px;
-  color: #666666;
+  color: #3a3a3a;
   line-height: 1.5;
   word-break: break-word;
 }
@@ -151,11 +151,11 @@
 }
 
 .btn-close:hover {
-  background-color: #667eea;
+  background-color: #5461d0;
   color: white;
-  border-color: #667eea;
+  border-color: #5461d0;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 4px 12px rgba(84, 97, 208, 0.3);
 }
 
 /* Scrollbar customizado */

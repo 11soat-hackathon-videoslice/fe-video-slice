@@ -95,14 +95,14 @@
   background-color: #efe;
   border: 1px solid #cfc;
   border-radius: 6px;
-  color: #3c3;
+  color: #2a862a;
   font-size: 14px;
   text-align: center;
 }
 
 .btn-primary {
   padding: 14px 24px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #4c51bf 0%, #5a3d9a 100%);
   color: white;
   border: none;
   border-radius: 8px;
@@ -151,7 +151,7 @@
 }
 
 .separator {
-  color: #ccc;
+  color: #767676;
   font-size: 14px;
 }
 
