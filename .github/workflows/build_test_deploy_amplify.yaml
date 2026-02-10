@@ -47,7 +47,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Configurar Node.js ${{ env.NODE_VERSION }}
+      - name: Configurar Node.js ${{ vars.NODE_VERSION }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
