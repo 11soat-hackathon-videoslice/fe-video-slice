@@ -5,32 +5,7 @@ frontend:
     preBuild:
       commands:
         # Instala as dependências
-        - npm install
-
-    test:
-      commands:
-        # Executa os testes unitários com cobertura mínima de 80%
-        - echo "Executando testes unitários com cobertura..."
-        - npm run test:ci
-
-        # Verifica se a cobertura foi gerada
-        - |
-          if [ ! -f "coverage/lcov.info" ]; then
-            echo "Erro: Arquivo de cobertura não encontrado!"
-            exit 1
-          fi
-
-        # Executa o quality gate do SonarQube
-        - echo "Executando análise do SonarQube..."
-        - export SONAR_TOKEN=${SONAR_TOKEN}
-        - npm install -g sonarqube-scanner
-        - cd ..
-        - sonar-scanner
-        - cd vdsc-react-app
-
-        # Verifica se o quality gate passou
-        - echo "Aguardando resultado do quality gate..."
-        - sleep 10
+        - npm ci
 
     build:
       commands:

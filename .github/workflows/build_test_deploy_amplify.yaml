@@ -1,0 +1,163 @@
+name: Build, Test and Deploy vdsc-prd-app-web (Amplify)
+
+permissions:
+  id-token: write
+  contents: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      deploy_only:
+        description: 'Pular testes e executar apenas o deploy (true/false)'
+        required: false
+        default: false
+        type: boolean
+
+  push:
+    branches:
+      - develop
+    paths:
+      - 'vdsc-react-app/src/**'
+      - 'vdsc-react-app/public/**'
+      - 'vdsc-react-app/package.json'
+  pull_request:
+    branches:
+      - master
+    paths:
+      - 'vdsc-react-app/src/**'
+      - 'vdsc-react-app/public/**'
+      - 'vdsc-react-app/package.json'
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  NODE_VERSION: '18'
+  AMPLIFY_APP_ID: ${{ vars.AMPLIFY_APP_ID }}
+
+jobs:
+  tests-and-coverage:
+    name: Testes e Quality Gate
+    runs-on: ubuntu-latest
+    if: (github.event.inputs.deploy_only == 'false' &&  github.event_name == 'workflow_dispatch') || (github.event_name == 'push' || github.event_name == 'pull_request')
+    defaults:
+      run:
+        working-directory: vdsc-react-app
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configurar Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: vdsc-react-app/package-lock.json
+
+      - name: Cache de dependências Node
+        uses: actions/cache@v4
+        with:
+          path: |
+            vdsc-react-app/node_modules
+            ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('vdsc-react-app/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Instalar dependências
+        run: |
+          echo "📦 Instalando dependências do projeto..."
+          npm ci
+          echo "✅ Dependências instaladas com sucesso"
+
+      - name: Executar testes com cobertura
+        run: |
+          echo "🧪 Executando testes unitários..."
+          npm run test:ci
+          echo "✅ Testes executados com sucesso"
+
+      - name: Verificar arquivos de cobertura e testes
+        run: |
+          echo "🔍 Verificando arquivos gerados..."
+          
+          if [ -f coverage/lcov.info ]; then
+            echo "✅ coverage/lcov.info encontrado"
+            head -30 coverage/lcov.info
+          else
+            echo "❌ coverage/lcov.info NÃO encontrado"
+            exit 1
+          fi
+          
+          if [ -f junit.xml ]; then
+            echo "✅ junit.xml encontrado"
+          else
+            echo "❌ junit.xml NÃO encontrado"
+            exit 1
+          fi
+
+      - name: Upload de relatório de cobertura
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            vdsc-react-app/coverage/
+            vdsc-react-app/junit.xml
+
+      - name: Verificar Node.js disponível para SonarCloud
+        run: |
+          echo "🔍 Verificando Node.js no PATH..."
+          which node
+          node --version
+          npm --version
+          
+          # Armazenar caminho do Node.js
+          NODE_PATH=$(which node)
+          echo "Node.js PATH: ${NODE_PATH}"
+          echo "NODE_EXECUTABLE=${NODE_PATH}" >> $GITHUB_ENV
+        working-directory: .
+
+      - name: Análise do SonarCloud
+        uses: SonarSource/sonarcloud-github-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          projectBaseDir: .
+          args: >
+            -Dsonar.nodejs.executable=${{ env.NODE_EXECUTABLE }}
+
+  approval:
+    name: Aprovação Manual (Produção)
+    runs-on: ubuntu-latest
+    needs: tests-and-coverage
+    if: (github.event_name == 'pull_request' && github.base_ref == 'master') || (github.event_name == 'push' && github.ref == 'refs/heads/master')
+    environment:
+      name: prod
+    steps:
+      - name: Aguardando aprovação manual para produção
+        run: |
+          echo "✅ Aprovação manual concedida para deploy em produção"
+
+  build-and-deploy:
+    name: Acionando build e deploy no Amplify
+    runs-on: ubuntu-latest
+    needs: [ tests-and-coverage, approval ]
+    if: |
+      always() &&
+      (needs.tests-and-coverage.result == 'success' || 
+       (needs.tests-and-coverage.result == 'skipped' && github.event.inputs.deploy_only == 'true')) &&
+      (needs.approval.result == 'success' || needs.approval.result == 'skipped')
+    environment:
+      name: ${{ ((github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/master') && 'prod' || 'develop' }}
+    defaults:
+      run:
+        working-directory: vdsc-react-app
+    steps:
+      - name: Chamando webhook para iniciar build no Amplify
+        env:
+          VDSC_AMPLIFY_WEBHOOK_ID: ${{ secrets.VDSC_AMPLIFY_WEBHOOK_ID }}
+        run: |
+          curl -fsS -X POST \
+          -H "Content-Type:application/json" \
+          "https://webhooks.amplify.us-east-1.amazonaws.com/prod/webhooks?id=$VDSC_AMPLIFY_WEBHOOK_ID&operation=startbuild"
+            
