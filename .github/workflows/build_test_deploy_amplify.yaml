@@ -157,8 +157,9 @@ jobs:
         env:
           VDSC_AMPLIFY_WEBHOOK_ID: ${{ secrets.VDSC_AMPLIFY_WEBHOOK_ID }}
           VDSC_AMPLIFY_WEBHOOK_TOKEN: ${{ secrets.VDSC_AMPLIFY_WEBHOOK_TOKEN }}
+          ENVIRONMENT_NAME: ${{ ((github.event_name == 'pull_request' && github.base_ref == 'master') || ((github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/master')) && 'prod' || 'develop' }}
         run: |
-          echo "Configurando URL do webhook para iniciar build no Amplify para ambiente ${{environment.name}}"
+          echo "Configurando URL do webhook para iniciar build no Amplify para ambiente ${ENVIRONMENT_NAME}"
           URL="https://webhooks.amplify.us-east-1.amazonaws.com/prod/webhooks?id=$VDSC_AMPLIFY_WEBHOOK_ID&token=$VDSC_AMPLIFY_WEBHOOK_TOKEN&operation=startbuild"
           
           echo "Disparando build no Amplify via webhook..."
