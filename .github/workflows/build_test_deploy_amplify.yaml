@@ -156,8 +156,13 @@ jobs:
       - name: Chamando webhook para iniciar build no Amplify
         env:
           VDSC_AMPLIFY_WEBHOOK_ID: ${{ secrets.VDSC_AMPLIFY_WEBHOOK_ID }}
+          VDSC_AMPLIFY_WEBHOOK_TOKEN: ${{ secrets.VDSC_AMPLIFY_WEBHOOK_TOKEN }}
         run: |
+          echo "Configurando URL do webhook para iniciar build no Amplify para ambiente ${{environment.name}}"
+          URL="https://webhooks.amplify.us-east-1.amazonaws.com/prod/webhooks?id=$VDSC_AMPLIFY_WEBHOOK_ID&token=$VDSC_AMPLIFY_WEBHOOK_TOKEN&operation=startbuild"
+          
+          echo "Disparando build no Amplify via webhook..."
           curl -fsS -X POST \
           -H "Content-Type:application/json" \
-          "https://webhooks.amplify.us-east-1.amazonaws.com/prod/webhooks?id=$VDSC_AMPLIFY_WEBHOOK_ID&operation=startbuild"
+          $URL
             
