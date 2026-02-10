@@ -193,13 +193,40 @@ jobs:
         env:
           VDSC_AMPLIFY_WEBHOOK_ID: ${{ secrets.VDSC_AMPLIFY_WEBHOOK_ID }}
           VDSC_AMPLIFY_WEBHOOK_TOKEN: ${{ secrets.VDSC_AMPLIFY_WEBHOOK_TOKEN }}
+          AMPLIFY_APP_ID: ${{ vars.AMPLIFY_APP_ID }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
           ENVIRONMENT_NAME: ${{ ((github.event_name == 'pull_request' && github.base_ref == 'master') || ((github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/master')) && 'prod' || 'develop' }}
         run: |
-          echo "Configurando URL do webhook para iniciar build no Amplify para ambiente ${ENVIRONMENT_NAME}"
-          URL="https://webhooks.amplify.us-east-1.amazonaws.com/prod/webhooks?id=$VDSC_AMPLIFY_WEBHOOK_ID&token=$VDSC_AMPLIFY_WEBHOOK_TOKEN&operation=startbuild"
+          # Determinar o branch baseado no ambiente
+          if [ "$ENVIRONMENT_NAME" == "prod" ]; then
+            BRANCH_NAME="master"
+          else
+            BRANCH_NAME="develop"
+          fi
           
-          echo "Disparando build no Amplify via webhook..."
-          curl -fsS -X POST \
-          -H "Content-Type:application/json" \
-          $URL
+          echo "🌍 Ambiente: ${ENVIRONMENT_NAME}"
+          echo "🌿 Branch: ${BRANCH_NAME}"
+          echo ""
+          
+          echo "⚙️ Configurando URL do webhook para iniciar build no Amplify..."
+          URL="https://webhooks.amplify.us-east-1.amazonaws.com/prod/webhooks?id=$VDSC_AMPLIFY_WEBHOOK_ID&token=$VDSC_AMPLIFY_WEBHOOK_TOKEN&operation=startbuild"
+          echo "🔗 URL do webhook configurada: $URL"
+          echo ""
+          echo "🚀 Disparando build no Amplify via webhook..."
+          RESPONSE=$(curl -fsS -X POST \
+            -H "Content-Type: application/json" \
+            -d {} \
+            "$URL")
+          
+          echo "✅ Resposta do webhook:"
+          echo "$RESPONSE"
+          echo ""
+          
+          # Verificar se o build foi disparado com sucesso
+          if echo "$RESPONSE" | grep -q "MessageId"; then
+            echo "✅ Build disparado com sucesso no AWS Amplify para o branch ${BRANCH_NAME}!"
+            echo "🔗 Acesse o console do Amplify para acompanhar o build: https://console.aws.amazon.com/amplify/home?region=${AWS_REGION}#/${AMPLIFY_APP_ID}"
+          else
+            echo "⚠️ Webhook respondeu, mas verifique o console do Amplify para confirmar o build"
+          fi
             
