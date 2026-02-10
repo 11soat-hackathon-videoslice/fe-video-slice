@@ -116,6 +116,45 @@ jobs:
           echo "NODE_EXECUTABLE=${NODE_PATH}" >> $GITHUB_ENV
         working-directory: .
 
+      - name: Verificar arquivos para SonarCloud
+        run: |
+          echo "🔍 Verificando existência dos arquivos de cobertura e testes..."
+          echo "Working directory: $(pwd)"
+          echo ""
+          
+          echo "📂 Estrutura de diretórios:"
+          ls -la
+          echo ""
+          
+          if [ -d "vdsc-react-app/coverage" ]; then
+            echo "✅ Diretório vdsc-react-app/coverage existe"
+            ls -la vdsc-react-app/coverage/
+          else
+            echo "❌ Diretório vdsc-react-app/coverage NÃO existe"
+          fi
+          echo ""
+          
+          if [ -f "vdsc-react-app/coverage/lcov.info" ]; then
+            echo "✅ Arquivo vdsc-react-app/coverage/lcov.info existe"
+            echo "Tamanho: $(wc -l < vdsc-react-app/coverage/lcov.info) linhas"
+          else
+            echo "❌ Arquivo vdsc-react-app/coverage/lcov.info NÃO existe"
+            exit 1
+          fi
+          echo ""
+          
+          if [ -f "vdsc-react-app/junit.xml" ]; then
+            echo "✅ Arquivo vdsc-react-app/junit.xml existe"
+            echo "Tamanho: $(wc -l < vdsc-react-app/junit.xml) linhas"
+          else
+            echo "❌ Arquivo vdsc-react-app/junit.xml NÃO existe"
+            exit 1
+          fi
+          echo ""
+          
+          echo "✅ Todos os arquivos necessários para o SonarCloud existem!"
+        working-directory: .
+
       - name: Análise do SonarCloud
         uses: SonarSource/sonarcloud-github-action@v3
         env:
@@ -125,6 +164,7 @@ jobs:
           projectBaseDir: .
           args: >
             -Dsonar.nodejs.executable=${{ env.NODE_EXECUTABLE }}
+            -Dsonar.javascript.node.maxspace=4096
 
   approval:
     name: Aprovação Manual (Produção)
