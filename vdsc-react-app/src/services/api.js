@@ -43,9 +43,16 @@ const getCurrentUserId = async () => {
 const parseDynamoDBItem = (item) => {
   if (!item) return null;
   
-  // Check if item is already in JavaScript format (has direct properties like videoId, fileName, etc.)
-  if (item.videoId || item.fileName || item.userId) {
-    return item; // Already parsed, return as is
+  // Check if any property has DynamoDB type descriptors (S, N, BOOL, L, M)
+  const hasDynamoDBFormat = Object.values(item).some(value =>
+    value && typeof value === 'object' &&
+    (value.S !== undefined || value.N !== undefined || value.BOOL !== undefined ||
+     value.L !== undefined || value.M !== undefined || value.NULL !== undefined)
+  );
+
+  // If no DynamoDB format detected, return as is
+  if (!hasDynamoDBFormat) {
+    return item;
   }
   
   // Otherwise, parse DynamoDB format

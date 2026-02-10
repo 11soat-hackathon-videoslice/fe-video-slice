@@ -1,300 +1,134 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import LogsModal from './LogsModal';
 
 describe('LogsModal Component', () => {
-  const mockVideo = {
+  const mockOnClose = jest.fn();
+
+  const mockVideoWithLogs = {
     id: 1,
-    fileName: 'test-video.mp4',
-    quality: 'high',
-    status: 'completed',
-    uploadedAt: '2026-01-13T10:00:00Z',
-    processedAt: '2026-01-13T10:30:00Z',
+    fileName: 'video1.mp4',
     logs: [
-      {
-        timestamp: '2026-01-13T10:00:00Z',
-        info: 'Upload iniciado'
-      },
-      {
-        timestamp: '2026-01-13T10:15:00Z',
-        info: 'Processamento iniciado'
-      },
-      {
-        timestamp: '2026-01-13T10:30:00Z',
-        info: 'Processamento concluído'
-      }
+      { timestamp: '2026-01-15T10:30:00Z', info: 'Upload iniciado' },
+      { timestamp: '2026-01-15T10:31:00Z', info: 'Processamento concluído' },
+      { timestamp: '2026-01-15T10:29:00Z', info: 'Arquivo recebido' }, // Fora de ordem para testar ordenação
     ]
   };
 
-  describe('Rendering', () => {
-    it('deve renderizar o modal de logs', () => {
-      render(
-        <LogsModal onClose={jest.fn()} video={mockVideo} />
-      );
-      expect(screen.getByText(/Logs do Vídeo/i)).toBeInTheDocument();
+  const mockVideoWithoutLogs = {
+    id: 2,
+    fileName: 'video2.mp4',
+    logs: []
+  };
+
+  const mockVideoWithNullLogs = {
+    id: 3,
+    fileName: 'video3.mp4',
+    logs: null
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  describe('Renderização', () => {
+    it('deve renderizar o título com nome do vídeo', () => {
+      render(<LogsModal video={mockVideoWithLogs} onClose={mockOnClose} />);
+      expect(screen.getByText(/logs do vídeo: video1.mp4/i)).toBeInTheDocument();
     });
 
-    it('deve exibir nome do arquivo no modal', () => {
-      render(
-        <LogsModal onClose={jest.fn()} video={mockVideo} />
-      );
-      expect(screen.getByText(/test-video\.mp4/i)).toBeInTheDocument();
+    it('deve renderizar os logs', () => {
+      render(<LogsModal video={mockVideoWithLogs} onClose={mockOnClose} />);
+      expect(screen.getByText('Upload iniciado')).toBeInTheDocument();
+      expect(screen.getByText('Processamento concluído')).toBeInTheDocument();
+      expect(screen.getByText('Arquivo recebido')).toBeInTheDocument();
     });
 
-    it('deve exibir ID do vídeo', () => {
-      render(
-        <LogsModal onClose={jest.fn()} video={mockVideo} />
-      );
-      expect(screen.getByText(/1/)).toBeInTheDocument();
+    it('deve renderizar mensagem quando não há logs', () => {
+      render(<LogsModal video={mockVideoWithoutLogs} onClose={mockOnClose} />);
+      expect(screen.getByText(/nenhum log disponível/i)).toBeInTheDocument();
     });
 
-    it('deve exibir status do vídeo', () => {
-      render(
-        <LogsModal onClose={jest.fn()} video={mockVideo} />
-      );
-      expect(screen.getByText(/completed/i)).toBeInTheDocument();
+    it('deve renderizar mensagem quando logs é null', () => {
+      render(<LogsModal video={mockVideoWithNullLogs} onClose={mockOnClose} />);
+      expect(screen.getByText(/nenhum log disponível/i)).toBeInTheDocument();
     });
 
-    it('deve exibir qualidade do vídeo', () => {
-      render(
-        <LogsModal onClose={jest.fn()} video={mockVideo} />
-      );
-      expect(screen.getByText(/high/i)).toBeInTheDocument();
+    it('deve renderizar botão de fechar no header', () => {
+      render(<LogsModal video={mockVideoWithLogs} onClose={mockOnClose} />);
+      expect(screen.getByText('✕')).toBeInTheDocument();
     });
 
-    it('deve exibir botão de fechar', () => {
-      const { container } = render(
-        <LogsModal onClose={jest.fn()} video={mockVideo} />
-      );
-      const closeButton = container.querySelector('.modal-close');
-      expect(closeButton).toBeInTheDocument();
+    it('deve renderizar botão Fechar no footer', () => {
+      render(<LogsModal video={mockVideoWithLogs} onClose={mockOnClose} />);
+      expect(screen.getByRole('button', { name: /fechar/i })).toBeInTheDocument();
     });
   });
 
-  describe('Logs Display', () => {
-    it('deve exibir todos os logs', () => {
-      render(
-        <LogsModal onClose={jest.fn()} video={mockVideo} />
-      );
-      expect(screen.getByText(/Upload iniciado/i)).toBeInTheDocument();
-      expect(screen.getByText(/Processamento iniciado/i)).toBeInTheDocument();
-      expect(screen.getByText(/Processamento concluído/i)).toBeInTheDocument();
-    });
+  describe('Ordenação de Logs', () => {
+    it('deve ordenar logs por timestamp em ordem crescente', () => {
+      render(<LogsModal video={mockVideoWithLogs} onClose={mockOnClose} />);
 
-    it('deve exibir timestamp dos logs', () => {
-      render(
-        <LogsModal onClose={jest.fn()} video={mockVideo} />
-      );
-      expect(screen.getByText(/2026-01-13T10:00:00Z/)).toBeInTheDocument();
-      expect(screen.getByText(/2026-01-13T10:15:00Z/)).toBeInTheDocument();
-    });
+      const logMessages = screen.getAllByText(/upload iniciado|processamento concluído|arquivo recebido/i);
 
-    it('deve exibir mensagem quando não há logs', () => {
-      const videoWithoutLogs = {
-        ...mockVideo,
-        logs: []
-      };
-
-      render(
-        <LogsModal onClose={jest.fn()} video={videoWithoutLogs} />
-      );
-      expect(screen.getByText(/Nenhum log/i)).toBeInTheDocument();
-    });
-
-    it('deve listar logs em ordem cronológica', () => {
-      render(
-        <LogsModal onClose={jest.fn()} video={mockVideo} />
-      );
-
-      const logs = screen.getAllByText(/2026-01-13T/);
-      expect(logs.length).toBeGreaterThan(0);
+      // Ordem esperada: Arquivo recebido (10:29), Upload iniciado (10:30), Processamento concluído (10:31)
+      expect(logMessages[0]).toHaveTextContent('Arquivo recebido');
+      expect(logMessages[1]).toHaveTextContent('Upload iniciado');
+      expect(logMessages[2]).toHaveTextContent('Processamento concluído');
     });
   });
 
-  describe('Video Information', () => {
-    it('deve exibir data de upload', () => {
-      render(
-        <LogsModal onClose={jest.fn()} video={mockVideo} />
-      );
-      expect(screen.getByText(/2026-01-13T10:00:00Z/)).toBeInTheDocument();
+  describe('Formatação de Data', () => {
+    it('deve formatar timestamps corretamente', () => {
+      render(<LogsModal video={mockVideoWithLogs} onClose={mockOnClose} />);
+      // O formato esperado é DD/MM/YYYY HH:MM:SS
+      expect(screen.getByText(/15\/01\/2026 10:30:00/)).toBeInTheDocument();
     });
 
-    it('deve exibir data de processamento', () => {
-      render(
-        <LogsModal onClose={jest.fn()} video={mockVideo} />
-      );
-      expect(screen.getByText(/2026-01-13T10:30:00Z/)).toBeInTheDocument();
-    });
-
-    it('deve exibir status "Processando" quando video está em processamento', () => {
-      const processingVideo = {
-        ...mockVideo,
-        status: 'processing',
-        processedAt: null
+    it('deve exibir traço quando timestamp é null', () => {
+      const videoWithNullTimestamp = {
+        id: 4,
+        fileName: 'video4.mp4',
+        logs: [{ timestamp: null, info: 'Log sem timestamp' }]
       };
-
-      render(
-        <LogsModal onClose={jest.fn()} video={processingVideo} />
-      );
-      expect(screen.getByText(/processing/i)).toBeInTheDocument();
-    });
-
-    it('deve exibir status "Erro" quando processamento falhou', () => {
-      const errorVideo = {
-        ...mockVideo,
-        status: 'error'
-      };
-
-      render(
-        <LogsModal onClose={jest.fn()} video={errorVideo} />
-      );
-      expect(screen.getByText(/error/i)).toBeInTheDocument();
+      render(<LogsModal video={videoWithNullTimestamp} onClose={mockOnClose} />);
+      expect(screen.getByText('-')).toBeInTheDocument();
     });
   });
 
-  describe('Modal Interaction', () => {
-    it('deve fechar o modal ao clicar no botão X', () => {
-      const onClose = jest.fn();
-      const { container } = render(
-        <LogsModal onClose={onClose} video={mockVideo} />
-      );
+  describe('Interações', () => {
+    it('deve chamar onClose ao clicar no botão X', () => {
+      render(<LogsModal video={mockVideoWithLogs} onClose={mockOnClose} />);
 
-      const closeButton = container.querySelector('.modal-close');
-      fireEvent.click(closeButton);
+      fireEvent.click(screen.getByText('✕'));
 
-      expect(onClose).toHaveBeenCalled();
+      expect(mockOnClose).toHaveBeenCalled();
     });
 
-    it('deve fechar o modal ao clicar fora dele', () => {
-      const onClose = jest.fn();
-      const { container } = render(
-        <LogsModal onClose={onClose} video={mockVideo} />
-      );
+    it('deve chamar onClose ao clicar no botão Fechar', () => {
+      render(<LogsModal video={mockVideoWithLogs} onClose={mockOnClose} />);
 
-      const overlay = container.querySelector('.modal-overlay');
+      fireEvent.click(screen.getByRole('button', { name: /fechar/i }));
+
+      expect(mockOnClose).toHaveBeenCalled();
+    });
+
+    it('deve chamar onClose ao clicar no overlay', () => {
+      render(<LogsModal video={mockVideoWithLogs} onClose={mockOnClose} />);
+
+      const overlay = screen.getByText(/logs do vídeo/i).closest('.modal-overlay');
       fireEvent.click(overlay);
 
-      // Dependendo da implementação, pode fechar ao clicar no overlay
-      // Ajuste conforme necessário
+      expect(mockOnClose).toHaveBeenCalled();
     });
 
-    it('deve escutar evento de close via callback', () => {
-      const onClose = jest.fn();
-      const { container } = render(
-        <LogsModal onClose={onClose} video={mockVideo} />
-      );
+    it('não deve chamar onClose ao clicar no conteúdo do modal', () => {
+      render(<LogsModal video={mockVideoWithLogs} onClose={mockOnClose} />);
 
-      const closeButton = container.querySelector('.modal-close');
-      fireEvent.click(closeButton);
+      const content = screen.getByText(/logs do vídeo/i).closest('.modal-content');
+      fireEvent.click(content);
 
-      expect(onClose).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  describe('Styling and Appearance', () => {
-    it('deve aplicar classes CSS apropriadas', () => {
-      const { container } = render(
-        <LogsModal onClose={jest.fn()} video={mockVideo} />
-      );
-
-      expect(container.querySelector('.modal-overlay')).toBeInTheDocument();
-      expect(container.querySelector('.modal-content')).toBeInTheDocument();
-    });
-
-    it('deve ter logs visíveis em container scrollável', () => {
-      const { container } = render(
-        <LogsModal onClose={jest.fn()} video={mockVideo} />
-      );
-
-      const logContainer = container.querySelector('.logs-container');
-      expect(logContainer).toBeInTheDocument();
-    });
-
-    it('deve exibir cada log em item separado', () => {
-      const { container } = render(
-        <LogsModal onClose={jest.fn()} video={mockVideo} />
-      );
-
-      const logItems = container.querySelectorAll('.log-item');
-      expect(logItems.length).toBe(mockVideo.logs.length);
-    });
-  });
-
-  describe('Empty States', () => {
-    it('deve renderizar corretamente com video sem logs', () => {
-      const videoWithoutLogs = {
-        ...mockVideo,
-        logs: undefined
-      };
-
-      render(
-        <LogsModal onClose={jest.fn()} video={videoWithoutLogs} />
-      );
-      expect(screen.getByText(/Nenhum log/i)).toBeInTheDocument();
-    });
-
-    it('deve renderizar corretamente com video sem informações opcionais', () => {
-      const minimalVideo = {
-        id: 1,
-        fileName: 'test.mp4',
-        logs: []
-      };
-
-      render(
-        <LogsModal onClose={jest.fn()} video={minimalVideo} />
-      );
-      expect(screen.getByText(/test\.mp4/i)).toBeInTheDocument();
-    });
-  });
-
-  describe('Copy Functionality', () => {
-    it('deve permitir copiar logs', () => {
-      const { container } = render(
-        <LogsModal onClose={jest.fn()} video={mockVideo} />
-      );
-
-      const copyButton = container.querySelector('.copy-logs-btn');
-      if (copyButton) {
-        fireEvent.click(copyButton);
-        // Verifica se a funcionalidade de cópia foi acionada
-        expect(copyButton).toBeInTheDocument();
-      }
-    });
-
-    it('deve mostrar mensagem de sucesso ao copiar', async () => {
-      const { container } = render(
-        <LogsModal onClose={jest.fn()} video={mockVideo} />
-      );
-
-      const copyButton = container.querySelector('.copy-logs-btn');
-      if (copyButton) {
-        fireEvent.click(copyButton);
-
-        await waitFor(() => {
-          expect(screen.queryByText(/copiado/i)).toBeInTheDocument();
-        }, { timeout: 500 });
-      }
-    });
-  });
-
-  describe('Responsiveness', () => {
-    it('deve adaptar layout para telas menores', () => {
-      const { container } = render(
-        <LogsModal onClose={jest.fn()} video={mockVideo} />
-      );
-
-      // Verifica se o container tem classes de responsividade
-      const modal = container.querySelector('.modal-content');
-      expect(modal).toBeInTheDocument();
-    });
-
-    it('deve manter conteúdo legível em diferentes resoluções', () => {
-      const { container } = render(
-        <LogsModal onClose={jest.fn()} video={mockVideo} />
-      );
-
-      const logContainer = container.querySelector('.logs-container');
-      expect(logContainer).toHaveStyle('overflow-y: auto');
+      expect(mockOnClose).not.toHaveBeenCalled();
     });
   });
 });

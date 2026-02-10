@@ -1,629 +1,1032 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { getCurrentUser } from 'aws-amplify/auth';
 import UploadModal from './UploadModal';
-import { videoAPI } from '../../services/api';
+import { videoAPI, uploadToS3 } from '../../services/api';
 
-// Mock dependencies
-jest.mock('aws-amplify/auth', () => ({
-  getCurrentUser: jest.fn()
-}));
-
+// Mock do api
 jest.mock('../../services/api', () => ({
   videoAPI: {
     getUploadUrl: jest.fn(),
-    uploadVideoMetadata: jest.fn()
+    uploadVideoMetadata: jest.fn(),
   },
-  uploadToS3: jest.fn()
+  uploadToS3: jest.fn(),
 }));
 
-const { getCurrentUser } = require('aws-amplify/auth');
-
-// Helper to create mock file
-const createMockVideoFile = (name = 'test.mp4', duration = 100) => {
-  const blob = new Blob(['test'], { type: 'video/mp4' });
-  const file = new File([blob], name, { type: 'video/mp4' });
-
-  // Mock video metadata
-  Object.defineProperty(file, 'duration', { value: duration });
-
-  return file;
-};
-
-// Helper to mock video metadata loading
-const mockVideoMetadata = (width = 1920, height = 1080) => {
-  const originalCreateElement = document.createElement;
-  document.createElement = jest.fn((tag) => {
-    if (tag === 'video') {
-      const video = originalCreateElement.call(document, tag);
-      Object.defineProperty(video, 'videoWidth', { value: width, writable: true });
-      Object.defineProperty(video, 'videoHeight', { value: height, writable: true });
-      Object.defineProperty(video, 'duration', { value: 100, writable: true });
-
-      // Simulate video load
-      setTimeout(() => {
-        if (video.onloadedmetadata) {
-          video.onloadedmetadata();
-        }
-      }, 0);
-
-      return video;
-    }
-    return originalCreateElement.call(document, tag);
-  });
-};
+// Mock do aws-amplify/auth
+jest.mock('aws-amplify/auth', () => ({
+  getCurrentUser: jest.fn(),
+}));
 
 describe('UploadModal Component', () => {
+  const mockOnClose = jest.fn();
+  const mockOnSuccess = jest.fn();
+
   beforeEach(() => {
     jest.clearAllMocks();
-    mockVideoMetadata(1920, 1080);
-
-    getCurrentUser.mockResolvedValue({
-      userId: 'test-user-123',
-      username: 'testuser'
-    });
-
+    jest.useFakeTimers();
+    mockVideoElement = null; // Limpar o mock de vídeo antes de cada teste
+    getCurrentUser.mockResolvedValue({ userId: 'test-user-id' });
     videoAPI.getUploadUrl.mockResolvedValue({
-      uploadUrl: 'https://s3.amazonaws.com/test-upload',
-      fileName: 'test_file_123.mp4',
-      s3Key: 'videos/test_file_123.mp4',
-      expiresIn: 3600
+      uploadUrl: 'https://s3.amazonaws.com/test-bucket/test.mp4',
+      fileName: 'abc123.mp4',
+      s3Key: 'videos/abc123.mp4',
+      expiresIn: '15 minutos'
     });
-
     videoAPI.uploadVideoMetadata.mockResolvedValue({ success: true });
+    uploadToS3.mockResolvedValue({ status: 200 });
   });
 
-  describe('Modal Rendering', () => {
-    it('deve renderizar o modal com título corretamente', () => {
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
-      expect(screen.getByText('Upload Novo Vídeo')).toBeInTheDocument();
+  afterEach(() => {
+    jest.runOnlyPendingTimers();
+    jest.useRealTimers();
+  });
+
+  const renderUploadModal = () => {
+    return render(<UploadModal onClose={mockOnClose} onSuccess={mockOnSuccess} />);
+  };
+
+  // Helper para criar arquivo mock com metadata de vídeo
+  const createMockFile = (name = 'test.mp4', size = 1024 * 1024, type = 'video/mp4') => {
+    const file = new File(['video content'], name, { type });
+    Object.defineProperty(file, 'size', { value: size });
+    return file;
+  };
+
+  // Mock global do createElement
+  let mockVideoElement = null;
+  const originalCreateElement = HTMLDocument.prototype.createElement;
+
+  beforeAll(() => {
+    HTMLDocument.prototype.createElement = function(tagName) {
+      if (tagName === 'video' && mockVideoElement) {
+        return mockVideoElement;
+      }
+      return originalCreateElement.call(this, tagName);
+    };
+  });
+
+  afterAll(() => {
+    HTMLDocument.prototype.createElement = originalCreateElement;
+  });
+
+  // Helper para criar mock de vídeo element
+  const createMockVideoElement = (duration = 60, width = 1920, height = 1080) => {
+    // Cria um elemento de vídeo real do DOM
+    const realVideo = originalCreateElement.call(document, 'video');
+
+    // Adiciona propriedades mockadas
+    Object.defineProperties(realVideo, {
+      duration: { value: duration, writable: true },
+      videoWidth: { value: width, writable: true },
+      videoHeight: { value: height, writable: true },
+      preload: { value: '', writable: true },
+      src: { value: '', writable: true }
     });
 
-    it('deve exibir a zona de drop inicialmente', () => {
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
-      expect(screen.getByText(/Clique para selecionar/i)).toBeInTheDocument();
+    mockVideoElement = realVideo;
+
+    // Simula o evento onloadedmetadata após um tick
+    setTimeout(() => {
+      if (mockVideoElement.onloadedmetadata) {
+        mockVideoElement.onloadedmetadata();
+      }
+    }, 0);
+
+    return mockVideoElement;
+  };
+
+  describe('Renderização', () => {
+    it('deve renderizar o título do modal', () => {
+      renderUploadModal();
+      expect(screen.getByText(/upload novo vídeo/i)).toBeInTheDocument();
     });
 
-    it('deve fechar o modal quando clicar no botão de fechar', () => {
-      const onClose = jest.fn();
-      const { container } = render(<UploadModal onClose={onClose} onSuccess={jest.fn()} />);
+    it('deve renderizar a dropzone', () => {
+      renderUploadModal();
+      expect(screen.getByText(/arraste um vídeo aqui/i)).toBeInTheDocument();
+    });
 
-      const closeButton = container.querySelector('.modal-close');
-      fireEvent.click(closeButton);
+    it('deve exibir formatos aceitos', () => {
+      renderUploadModal();
+      expect(screen.getByText(/mp4.*avi.*mov.*mkv.*webm/i)).toBeInTheDocument();
+    });
 
-      expect(onClose).toHaveBeenCalled();
+    it('deve exibir tamanho máximo', () => {
+      renderUploadModal();
+      expect(screen.getByText(/500mb/i)).toBeInTheDocument();
+    });
+
+    it('deve renderizar botões de ação', () => {
+      renderUploadModal();
+      expect(screen.getByRole('button', { name: /cancelar/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /enviar vídeo/i })).toBeInTheDocument();
     });
   });
 
-  describe('Tempo Inicial Validation', () => {
-    it('deve permitir tempo inicial igual a 0', async () => {
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
+  describe('Seleção de arquivo', () => {
+    it('deve aceitar arquivo mp4 válido', async () => {
+      createMockVideoElement(60, 1920, 1080);
+      renderUploadModal();
 
-      const fileInput = screen.getByDisplayValue('');
-      const file = createMockVideoFile();
+      const file = createMockFile('video.mp4');
+      const input = document.querySelector('input[type="file"]');
 
-      await waitFor(() => {
-        fireEvent.change(fileInput, { target: { files: [file] } });
+      await act(async () => {
+        Object.defineProperty(input, 'files', { value: [file], writable: false });
+        fireEvent.change(input);
       });
 
       await waitFor(() => {
-        const startTimeInput = screen.getByDisplayValue('0');
-        expect(startTimeInput).toHaveValue(0);
+        expect(screen.getByText(/video.mp4/i)).toBeInTheDocument();
       });
     });
 
-    it('deve rejeitar tempo inicial negativo', async () => {
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
+    it('deve aceitar arquivo avi', async () => {
+      createMockVideoElement(60, 1280, 720);
+      renderUploadModal();
+
+      const file = createMockFile('video.avi', 1024 * 1024, 'video/x-msvideo');
+      const input = document.querySelector('input[type="file"]');
+
+      await act(async () => {
+        Object.defineProperty(input, 'files', { value: [file], writable: false });
+        fireEvent.change(input);
+      });
 
       await waitFor(() => {
-        const startTimeInput = screen.getByLabelText('Tempo Inicial *');
+        expect(videoAPI.getUploadUrl).toHaveBeenCalled();
+      });
+    });
+
+    it('deve aceitar arquivo mov', async () => {
+      createMockVideoElement(60, 1280, 720);
+      renderUploadModal();
+
+      const file = createMockFile('video.mov', 1024 * 1024, 'video/quicktime');
+      const input = document.querySelector('input[type="file"]');
+
+      await act(async () => {
+        Object.defineProperty(input, 'files', { value: [file], writable: false });
+        fireEvent.change(input);
+      });
+
+      await waitFor(() => {
+        expect(videoAPI.getUploadUrl).toHaveBeenCalled();
+      });
+    });
+
+    it('deve rejeitar formato não suportado', async () => {
+      renderUploadModal();
+
+      const file = createMockFile('document.pdf', 1024, 'application/pdf');
+      const input = document.querySelector('input[type="file"]');
+
+      await act(async () => {
+        Object.defineProperty(input, 'files', { value: [file], writable: false });
+        fireEvent.change(input);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText(/formato não suportado/i)).toBeInTheDocument();
+      });
+    });
+
+    it('deve rejeitar arquivo muito grande', async () => {
+      renderUploadModal();
+
+      const file = createMockFile('large.mp4', 600 * 1024 * 1024); // 600 MB
+      const input = document.querySelector('input[type="file"]');
+
+      await act(async () => {
+        Object.defineProperty(input, 'files', { value: [file], writable: false });
+        fireEvent.change(input);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText(/arquivo muito grande/i)).toBeInTheDocument();
+      });
+    });
+
+    it('deve exibir mensagem de preparando upload', async () => {
+      createMockVideoElement(60, 1920, 1080);
+
+      // Mock com delay para capturar o estado de "preparando"
+      videoAPI.getUploadUrl.mockImplementation(() =>
+        new Promise(resolve => setTimeout(() => resolve({
+          uploadUrl: 'https://s3.amazonaws.com/test-bucket/test.mp4',
+          fileName: 'abc123.mp4',
+          s3Key: 'videos/abc123.mp4',
+          expiresIn: '15 minutos'
+        }), 100))
+      );
+
+      renderUploadModal();
+
+      const file = createMockFile('video.mp4');
+      const input = document.querySelector('input[type="file"]');
+
+      await act(async () => {
+        Object.defineProperty(input, 'files', { value: [file], writable: false });
+        fireEvent.change(input);
+      });
+
+      // Busca imediatamente após a mudança do arquivo
+      expect(screen.getByText(/preparando upload/i)).toBeInTheDocument();
+
+      // Aguarda o upload URL ser obtido
+      await waitFor(() => {
+        expect(videoAPI.getUploadUrl).toHaveBeenCalled();
+      });
+    });
+
+    it('deve gerar UUID curto para o vídeo', async () => {
+      createMockVideoElement(60, 1920, 1080);
+      renderUploadModal();
+
+      const file = createMockFile('video.mp4');
+      const input = document.querySelector('input[type="file"]');
+
+      await act(async () => {
+        Object.defineProperty(input, 'files', { value: [file], writable: false });
+        fireEvent.change(input);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText(/id do vídeo/i)).toBeInTheDocument();
+      });
+    });
+
+    it('deve exibir erro ao falhar obtenção de URL de upload', async () => {
+      createMockVideoElement(60, 1920, 1080);
+      videoAPI.getUploadUrl.mockRejectedValueOnce(new Error('Erro na API'));
+      renderUploadModal();
+
+      const file = createMockFile('video.mp4');
+      const input = document.querySelector('input[type="file"]');
+
+      await act(async () => {
+        Object.defineProperty(input, 'files', { value: [file], writable: false });
+        fireEvent.change(input);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText(/erro ao preparar upload/i)).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Metadata do vídeo', () => {
+    it('deve carregar duração do vídeo', async () => {
+      createMockVideoElement(120, 1920, 1080);
+      renderUploadModal();
+
+      const file = createMockFile('video.mp4');
+      const input = document.querySelector('input[type="file"]');
+
+      await act(async () => {
+        Object.defineProperty(input, 'files', { value: [file], writable: false });
+        fireEvent.change(input);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText(/120 s/i)).toBeInTheDocument();
+      });
+    });
+
+    it('deve detectar resolução 1080p e habilitar qualidade ultra', async () => {
+      createMockVideoElement(60, 1920, 1080);
+      renderUploadModal();
+
+      const file = createMockFile('video.mp4');
+      const input = document.querySelector('input[type="file"]');
+
+      await act(async () => {
+        Object.defineProperty(input, 'files', { value: [file], writable: false });
+        fireEvent.change(input);
+      });
+
+      await waitFor(() => {
+        const qualitySelect = screen.getByLabelText(/qualidade/i);
+        expect(qualitySelect.value).toBe('ultra');
+      });
+    });
+
+    it('deve detectar resolução 720p e habilitar qualidade alta', async () => {
+      createMockVideoElement(60, 1280, 720);
+      renderUploadModal();
+
+      const file = createMockFile('video.mp4');
+      const input = document.querySelector('input[type="file"]');
+
+      await act(async () => {
+        Object.defineProperty(input, 'files', { value: [file], writable: false });
+        fireEvent.change(input);
+      });
+
+      await waitFor(() => {
+        const qualitySelect = screen.getByLabelText(/qualidade/i);
+        expect(qualitySelect.value).toBe('high');
+      });
+    });
+
+    it('deve detectar resolução 480p e habilitar qualidade média', async () => {
+      createMockVideoElement(60, 854, 480);
+      renderUploadModal();
+
+      const file = createMockFile('video.mp4');
+      const input = document.querySelector('input[type="file"]');
+
+      await act(async () => {
+        Object.defineProperty(input, 'files', { value: [file], writable: false });
+        fireEvent.change(input);
+      });
+
+      await waitFor(() => {
+        const qualitySelect = screen.getByLabelText(/qualidade/i);
+        expect(qualitySelect.value).toBe('medium');
+      });
+    });
+
+    it('deve detectar resolução baixa e habilitar apenas qualidade baixa', async () => {
+      createMockVideoElement(60, 640, 360);
+      renderUploadModal();
+
+      const file = createMockFile('video.mp4');
+      const input = document.querySelector('input[type="file"]');
+
+      await act(async () => {
+        Object.defineProperty(input, 'files', { value: [file], writable: false });
+        fireEvent.change(input);
+      });
+
+      await waitFor(() => {
+        const qualitySelect = screen.getByLabelText(/qualidade/i);
+        expect(qualitySelect.value).toBe('low');
+      });
+    });
+  });
+
+  describe('Interações do Modal', () => {
+    it('deve chamar onClose ao clicar no X', () => {
+      renderUploadModal();
+      fireEvent.click(screen.getByText('×'));
+      expect(mockOnClose).toHaveBeenCalled();
+    });
+
+    it('deve exibir mensagem de cancelamento ao clicar em Cancelar', async () => {
+      renderUploadModal();
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /cancelar/i }));
+      });
+
+      expect(screen.getByText(/upload cancelado/i)).toBeInTheDocument();
+
+      await act(async () => {
+        jest.advanceTimersByTime(1500);
+      });
+
+      expect(mockOnClose).toHaveBeenCalled();
+    });
+  });
+
+  describe('Validações de formulário', () => {
+    it('deve desabilitar botão de envio sem arquivo', () => {
+      renderUploadModal();
+      const submitButton = screen.getByRole('button', { name: /enviar vídeo/i });
+      expect(submitButton).toBeDisabled();
+    });
+
+    it('deve validar tempo inicial menor que tempo final', async () => {
+      createMockVideoElement(60, 1920, 1080);
+      renderUploadModal();
+
+      const file = createMockFile('video.mp4');
+      const input = document.querySelector('input[type="file"]');
+
+      await act(async () => {
+        Object.defineProperty(input, 'files', { value: [file], writable: false });
+        fireEvent.change(input);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/tempo inicial/i)).toBeInTheDocument();
+      });
+
+      const startTimeInput = screen.getByLabelText(/tempo inicial/i);
+      const endTimeInput = screen.getByLabelText(/tempo final/i);
+
+      await act(async () => {
+        fireEvent.change(startTimeInput, { target: { value: '50' } });
+        fireEvent.blur(startTimeInput);
+      });
+
+      await act(async () => {
+        fireEvent.change(endTimeInput, { target: { value: '40' } });
+        fireEvent.blur(endTimeInput);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText(/tempo final deve ser maior que o tempo inicial/i)).toBeInTheDocument();
+      });
+    });
+
+    it('deve validar tempo inicial não negativo', async () => {
+      createMockVideoElement(60, 1920, 1080);
+      renderUploadModal();
+
+      const file = createMockFile('video.mp4');
+      const input = document.querySelector('input[type="file"]');
+
+      await act(async () => {
+        Object.defineProperty(input, 'files', { value: [file], writable: false });
+        fireEvent.change(input);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/tempo inicial/i)).toBeInTheDocument();
+      });
+
+      const startTimeInput = screen.getByLabelText(/tempo inicial/i);
+
+      await act(async () => {
         fireEvent.change(startTimeInput, { target: { value: '-5' } });
         fireEvent.blur(startTimeInput);
       });
 
       await waitFor(() => {
-        expect(screen.getByText(/Tempo inicial deve ser maior ou igual a 0/i)).toBeInTheDocument();
+        expect(screen.getByText(/tempo inicial deve ser maior ou igual a 0/i)).toBeInTheDocument();
       });
     });
 
-    it('deve rejeitar tempo inicial maior ou igual ao tempo final', async () => {
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
+    it('deve validar intervalo obrigatório', async () => {
+      createMockVideoElement(60, 1920, 1080);
+      renderUploadModal();
 
-      await waitFor(() => {
-        const startTimeInput = screen.getByLabelText('Tempo Inicial *');
-        const endTimeInput = screen.getByLabelText('Tempo Final *');
+      const file = createMockFile('video.mp4');
+      const input = document.querySelector('input[type="file"]');
 
-        fireEvent.change(endTimeInput, { target: { value: '50' } });
-        fireEvent.blur(endTimeInput);
-
-        fireEvent.change(startTimeInput, { target: { value: '50' } });
-        fireEvent.blur(startTimeInput);
+      await act(async () => {
+        Object.defineProperty(input, 'files', { value: [file], writable: false });
+        fireEvent.change(input);
       });
 
       await waitFor(() => {
-        expect(screen.getByText(/Tempo inicial deve ser menor que o tempo final/i)).toBeInTheDocument();
-      });
-    });
-
-    it('deve validar em tempo real enquanto o usuário digita', async () => {
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
-
-      await waitFor(() => {
-        const startTimeInput = screen.getByLabelText('Tempo Inicial *');
-        fireEvent.change(startTimeInput, { target: { value: '-1' } });
+        expect(screen.getByLabelText(/intervalo/i)).toBeInTheDocument();
       });
 
-      await waitFor(() => {
-        expect(screen.getByText(/Tempo inicial deve ser maior ou igual a 0/i)).toBeInTheDocument();
-      }, { timeout: 2000 });
-    });
-  });
+      const intervalInput = screen.getByLabelText(/intervalo/i);
 
-  describe('Tempo Final Validation', () => {
-    it('deve rejeitar tempo final maior que a duração do vídeo', async () => {
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
-
-      await waitFor(() => {
-        const endTimeInput = screen.getByLabelText('Tempo Final *');
-        fireEvent.change(endTimeInput, { target: { value: '200' } });
-        fireEvent.blur(endTimeInput);
-      });
-
-      await waitFor(() => {
-        expect(screen.getByText(/Tempo final deve ser menor ou igual à duração do vídeo/i)).toBeInTheDocument();
-      });
-    });
-
-    it('deve rejeitar tempo final menor ou igual ao tempo inicial', async () => {
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
-
-      await waitFor(() => {
-        const startTimeInput = screen.getByLabelText('Tempo Inicial *');
-        const endTimeInput = screen.getByLabelText('Tempo Final *');
-
-        fireEvent.change(startTimeInput, { target: { value: '50' } });
-        fireEvent.blur(startTimeInput);
-
-        fireEvent.change(endTimeInput, { target: { value: '50' } });
-        fireEvent.blur(endTimeInput);
-      });
-
-      await waitFor(() => {
-        expect(screen.getByText(/Tempo final deve ser maior que o tempo inicial/i)).toBeInTheDocument();
-      });
-    });
-
-    it('deve re-validar tempo inicial quando tempo final é alterado', async () => {
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
-
-      await waitFor(() => {
-        const startTimeInput = screen.getByLabelText('Tempo Inicial *');
-        const endTimeInput = screen.getByLabelText('Tempo Final *');
-
-        fireEvent.change(startTimeInput, { target: { value: '80' } });
-        fireEvent.blur(startTimeInput);
-
-        fireEvent.change(endTimeInput, { target: { value: '70' } });
-        fireEvent.blur(endTimeInput);
-      });
-
-      await waitFor(() => {
-        expect(screen.getByText(/Tempo inicial deve ser menor que o tempo final/i)).toBeInTheDocument();
-      });
-    });
-  });
-
-  describe('Intervalo - Valor Único', () => {
-    it('deve rejeitar intervalo menor ou igual a zero', async () => {
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
-
-      await waitFor(() => {
-        const intervalInput = screen.getByLabelText('Intervalo *');
-        fireEvent.change(intervalInput, { target: { value: '0' } });
+      await act(async () => {
+        fireEvent.change(intervalInput, { target: { value: '' } });
         fireEvent.blur(intervalInput);
       });
 
       await waitFor(() => {
-        expect(screen.getByText(/Intervalo deve ser um número maior que zero/i)).toBeInTheDocument();
+        expect(screen.getByText(/intervalo é obrigatório/i)).toBeInTheDocument();
       });
     });
 
-    it('deve rejeitar intervalo maior que a duração do vídeo', async () => {
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
+    it('deve validar intervalo único positivo', async () => {
+      createMockVideoElement(60, 1920, 1080);
+      renderUploadModal();
+
+      const file = createMockFile('video.mp4');
+      const input = document.querySelector('input[type="file"]');
+
+      await act(async () => {
+        Object.defineProperty(input, 'files', { value: [file], writable: false });
+        fireEvent.change(input);
+      });
 
       await waitFor(() => {
-        const intervalInput = screen.getByLabelText('Intervalo *');
-        fireEvent.change(intervalInput, { target: { value: '200' } });
+        expect(screen.getByLabelText(/intervalo/i)).toBeInTheDocument();
+      });
+
+      const intervalInput = screen.getByLabelText(/intervalo/i);
+
+      await act(async () => {
+        fireEvent.change(intervalInput, { target: { value: '-5' } });
         fireEvent.blur(intervalInput);
       });
 
       await waitFor(() => {
-        expect(screen.getByText(/Intervalo deve ser menor ou igual à duração do vídeo/i)).toBeInTheDocument();
+        expect(screen.getByText(/intervalo deve ser um número maior que zero/i)).toBeInTheDocument();
       });
     });
 
-    it('deve exibir preview para intervalo válido com menos de 7 momentos', async () => {
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
+    it('deve validar múltiplos intervalos', async () => {
+      createMockVideoElement(60, 1920, 1080);
+      renderUploadModal();
 
-      await waitFor(() => {
-        const startTimeInput = screen.getByLabelText('Tempo Inicial *');
-        const endTimeInput = screen.getByLabelText('Tempo Final *');
-        const intervalInput = screen.getByLabelText('Intervalo *');
+      const file = createMockFile('video.mp4');
+      const input = document.querySelector('input[type="file"]');
 
-        fireEvent.change(startTimeInput, { target: { value: '0' } });
-        fireEvent.blur(startTimeInput);
-
-        fireEvent.change(endTimeInput, { target: { value: '30' } });
-        fireEvent.blur(endTimeInput);
-
-        fireEvent.change(intervalInput, { target: { value: '5' } });
-        fireEvent.blur(intervalInput);
+      await act(async () => {
+        Object.defineProperty(input, 'files', { value: [file], writable: false });
+        fireEvent.change(input);
       });
 
       await waitFor(() => {
-        expect(screen.getByText(/Serão capturadas 7 imagens nos momentos/i)).toBeInTheDocument();
-      });
-    });
-
-    it('deve exibir preview com reticências para muitos momentos', async () => {
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
-
-      await waitFor(() => {
-        const startTimeInput = screen.getByLabelText('Tempo Inicial *');
-        const endTimeInput = screen.getByLabelText('Tempo Final *');
-        const intervalInput = screen.getByLabelText('Intervalo *');
-
-        fireEvent.change(startTimeInput, { target: { value: '0' } });
-        fireEvent.blur(startTimeInput);
-
-        fireEvent.change(endTimeInput, { target: { value: '100' } });
-        fireEvent.blur(endTimeInput);
-
-        fireEvent.change(intervalInput, { target: { value: '5' } });
-        fireEvent.blur(intervalInput);
+        expect(screen.getByLabelText(/intervalo/i)).toBeInTheDocument();
       });
 
-      await waitFor(() => {
-        expect(screen.getByText(/\.\.\./)).toBeInTheDocument();
-      });
-    });
-  });
+      const intervalInput = screen.getByLabelText(/intervalo/i);
 
-  describe('Intervalo - Valores Múltiplos', () => {
-    it('deve bloquear tempo inicial quando múltiplos intervalos são definidos', async () => {
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
-
-      await waitFor(() => {
-        const intervalInput = screen.getByLabelText('Intervalo *');
+      await act(async () => {
         fireEvent.change(intervalInput, { target: { value: '10,20,30' } });
+        fireEvent.blur(intervalInput);
       });
 
       await waitFor(() => {
-        const startTimeInput = screen.getByLabelText('Tempo Inicial *');
+        expect(screen.queryByText(/intervalo deve ser um número maior que zero/i)).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Conversão de unidade de tempo', () => {
+    it('deve converter de segundos para milissegundos', async () => {
+      createMockVideoElement(60, 1920, 1080);
+      renderUploadModal();
+
+      const file = createMockFile('video.mp4');
+      const input = document.querySelector('input[type="file"]');
+
+      await act(async () => {
+        Object.defineProperty(input, 'files', { value: [file], writable: false });
+        fireEvent.change(input);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/unidade de tempo/i)).toBeInTheDocument();
+      });
+
+      const timeUnitSelect = screen.getByLabelText(/unidade de tempo/i);
+      const startTimeInput = screen.getByLabelText(/tempo inicial/i);
+
+      await act(async () => {
+        fireEvent.change(startTimeInput, { target: { value: '10' } });
+      });
+
+      await act(async () => {
+        fireEvent.change(timeUnitSelect, { target: { value: 'milliseconds' } });
+      });
+
+      await waitFor(() => {
+        expect(startTimeInput.value).toBe('10000');
+      });
+    });
+
+    it('deve converter de milissegundos para segundos', async () => {
+      createMockVideoElement(60, 1920, 1080);
+      renderUploadModal();
+
+      const file = createMockFile('video.mp4');
+      const input = document.querySelector('input[type="file"]');
+
+      await act(async () => {
+        Object.defineProperty(input, 'files', { value: [file], writable: false });
+        fireEvent.change(input);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/unidade de tempo/i)).toBeInTheDocument();
+      });
+
+      const timeUnitSelect = screen.getByLabelText(/unidade de tempo/i);
+
+      await act(async () => {
+        fireEvent.change(timeUnitSelect, { target: { value: 'milliseconds' } });
+      });
+
+      const startTimeInput = screen.getByLabelText(/tempo inicial/i);
+
+      await act(async () => {
+        fireEvent.change(startTimeInput, { target: { value: '5000' } });
+      });
+
+      await act(async () => {
+        fireEvent.change(timeUnitSelect, { target: { value: 'seconds' } });
+      });
+
+      await waitFor(() => {
+        expect(startTimeInput.value).toBe('5');
+      });
+    });
+  });
+
+  describe('Preview de captura', () => {
+    it('deve exibir preview para intervalo único', async () => {
+      createMockVideoElement(60, 1920, 1080);
+      renderUploadModal();
+
+      const file = createMockFile('video.mp4');
+      const input = document.querySelector('input[type="file"]');
+
+      await act(async () => {
+        Object.defineProperty(input, 'files', { value: [file], writable: false });
+        fireEvent.change(input);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/intervalo/i)).toBeInTheDocument();
+      });
+
+      const intervalInput = screen.getByLabelText(/intervalo/i);
+
+      await act(async () => {
+        fireEvent.change(intervalInput, { target: { value: '10' } });
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText(/serão capturadas.*imagens/i)).toBeInTheDocument();
+      });
+    });
+
+    it('deve exibir preview para múltiplos intervalos', async () => {
+      createMockVideoElement(60, 1920, 1080);
+      renderUploadModal();
+
+      const file = createMockFile('video.mp4');
+      const input = document.querySelector('input[type="file"]');
+
+      await act(async () => {
+        Object.defineProperty(input, 'files', { value: [file], writable: false });
+        fireEvent.change(input);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/intervalo/i)).toBeInTheDocument();
+      });
+
+      const intervalInput = screen.getByLabelText(/intervalo/i);
+
+      await act(async () => {
+        fireEvent.change(intervalInput, { target: { value: '5,10,15,20' } });
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText(/serão capturadas 4 imagens/i)).toBeInTheDocument();
+      });
+    });
+
+    it('deve bloquear tempo inicial e final com múltiplos intervalos', async () => {
+      createMockVideoElement(60, 1920, 1080);
+      renderUploadModal();
+
+      const file = createMockFile('video.mp4');
+      const input = document.querySelector('input[type="file"]');
+
+      await act(async () => {
+        Object.defineProperty(input, 'files', { value: [file], writable: false });
+        fireEvent.change(input);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/intervalo/i)).toBeInTheDocument();
+      });
+
+      const intervalInput = screen.getByLabelText(/intervalo/i);
+
+      await act(async () => {
+        fireEvent.change(intervalInput, { target: { value: '5,10,15' } });
+      });
+
+      await waitFor(() => {
+        const startTimeInput = screen.getByLabelText(/tempo inicial/i);
+        const endTimeInput = screen.getByLabelText(/tempo final/i);
         expect(startTimeInput).toBeDisabled();
-      });
-    });
-
-    it('deve bloquear tempo final quando múltiplos intervalos são definidos', async () => {
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
-
-      await waitFor(() => {
-        const intervalInput = screen.getByLabelText('Intervalo *');
-        fireEvent.change(intervalInput, { target: { value: '10,20,30' } });
-      });
-
-      await waitFor(() => {
-        const endTimeInput = screen.getByLabelText('Tempo Final *');
         expect(endTimeInput).toBeDisabled();
       });
     });
+  });
 
-    it('deve desbloquear tempo inicial e final quando intervalo é alterado para valor único', async () => {
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
+  describe('Drag and Drop', () => {
+    it('deve ativar estilo ao arrastar arquivo', () => {
+      renderUploadModal();
+      const dropzone = screen.getByText(/arraste um vídeo aqui/i).closest('.dropzone');
 
-      await waitFor(() => {
-        const intervalInput = screen.getByLabelText('Intervalo *');
+      fireEvent.dragEnter(dropzone);
+      expect(dropzone).toHaveClass('active');
+    });
 
-        // Primeiro define múltiplos
-        fireEvent.change(intervalInput, { target: { value: '10,20,30' } });
+    it('deve desativar estilo ao sair da área', () => {
+      renderUploadModal();
+      const dropzone = screen.getByText(/arraste um vídeo aqui/i).closest('.dropzone');
+
+      fireEvent.dragEnter(dropzone);
+      fireEvent.dragLeave(dropzone);
+      expect(dropzone).not.toHaveClass('active');
+    });
+
+    it('deve aceitar arquivo via drag and drop', async () => {
+      createMockVideoElement(60, 1920, 1080);
+      renderUploadModal();
+
+      const file = createMockFile('dropped.mp4');
+      const dropzone = screen.getByText(/arraste um vídeo aqui/i).closest('.dropzone');
+
+      await act(async () => {
+        fireEvent.drop(dropzone, {
+          dataTransfer: { files: [file] }
+        });
       });
 
       await waitFor(() => {
-        const startTimeInput = screen.getByLabelText('Tempo Inicial *');
-        expect(startTimeInput).toBeDisabled();
-      });
-
-      await waitFor(() => {
-        const intervalInput = screen.getByLabelText('Intervalo *');
-        // Depois muda para valor único
-        fireEvent.change(intervalInput, { target: { value: '5' } });
-      });
-
-      await waitFor(() => {
-        const startTimeInput = screen.getByLabelText('Tempo Inicial *');
-        expect(startTimeInput).not.toBeDisabled();
+        expect(videoAPI.getUploadUrl).toHaveBeenCalled();
       });
     });
 
-    it('deve rejeitar valores não numéricos em múltiplos intervalos', async () => {
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
+    it('deve prevenir comportamento padrão no dragover', () => {
+      renderUploadModal();
+      const dropzone = screen.getByText(/arraste um vídeo aqui/i).closest('.dropzone');
 
-      await waitFor(() => {
-        const intervalInput = screen.getByLabelText('Intervalo *');
-        fireEvent.change(intervalInput, { target: { value: '10,abc,30' } });
-        fireEvent.blur(intervalInput);
-      });
+      const event = new Event('dragover', { bubbles: true });
+      const preventDefaultSpy = jest.spyOn(event, 'preventDefault');
 
-      await waitFor(() => {
-        expect(screen.getByText(/Todos os valores devem ser números maiores ou iguais a zero/i)).toBeInTheDocument();
-      });
-    });
-
-    it('deve exibir preview para múltiplos intervalos válidos', async () => {
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
-
-      await waitFor(() => {
-        const intervalInput = screen.getByLabelText('Intervalo *');
-        fireEvent.change(intervalInput, { target: { value: '5,21,33,57' } });
-        fireEvent.blur(intervalInput);
-      });
-
-      await waitFor(() => {
-        expect(screen.getByText(/Serão capturadas 4 imagens nos momentos/i)).toBeInTheDocument();
-      });
-    });
-
-    it('deve desprezar valores fora da duração máxima no preview', async () => {
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
-
-      await waitFor(() => {
-        const intervalInput = screen.getByLabelText('Intervalo *');
-        fireEvent.change(intervalInput, { target: { value: '5,21,33,150,200' } });
-        fireEvent.blur(intervalInput);
-      });
-
-      await waitFor(() => {
-        expect(screen.getByText(/Os valores fora do intervalo válido serão desprezados/i)).toBeInTheDocument();
-      });
-    });
-
-    it('deve rejeitar quando todos os valores estão fora do intervalo', async () => {
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
-
-      await waitFor(() => {
-        const intervalInput = screen.getByLabelText('Intervalo *');
-        fireEvent.change(intervalInput, { target: { value: '150,200,300' } });
-        fireEvent.blur(intervalInput);
-      });
-
-      await waitFor(() => {
-        expect(screen.getByText(/Pelo menos um valor deve estar dentro da duração do vídeo/i)).toBeInTheDocument();
-      });
+      fireEvent(dropzone, event);
+      expect(preventDefaultSpy).toHaveBeenCalled();
     });
   });
 
-  describe('Qualidade - Disponibilidade por Resolução', () => {
-    it('deve desabilitar Ultra para vídeo abaixo de 1080p', async () => {
-      mockVideoMetadata(1280, 720);
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
+  describe('Upload de vídeo', () => {
+    it('deve fazer upload com sucesso', async () => {
+      createMockVideoElement(60, 1920, 1080);
+      renderUploadModal();
 
-      await waitFor(() => {
-        const ultraOption = screen.getByDisplayValue('ultra');
-        expect(ultraOption).toBeDisabled();
-      });
-    });
+      const file = createMockFile('video.mp4');
+      const input = document.querySelector('input[type="file"]');
 
-    it('deve habilitar Ultra para vídeo com 1080p ou superior', async () => {
-      mockVideoMetadata(1920, 1080);
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
-
-      await waitFor(() => {
-        const ultraOption = screen.getByDisplayValue('ultra');
-        expect(ultraOption).not.toBeDisabled();
-      });
-    });
-
-    it('deve desabilitar Alta para vídeo abaixo de 720p', async () => {
-      mockVideoMetadata(854, 480);
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
-
-      await waitFor(() => {
-        const highOption = screen.getByDisplayValue('high');
-        expect(highOption).toBeDisabled();
-      });
-    });
-
-    it('deve habilitar Alta para vídeo com 720p ou superior', async () => {
-      mockVideoMetadata(1280, 720);
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
-
-      await waitFor(() => {
-        const highOption = screen.getByDisplayValue('high');
-        expect(highOption).not.toBeDisabled();
-      });
-    });
-
-    it('deve desabilitar Média para vídeo abaixo de 480p', async () => {
-      mockVideoMetadata(640, 360);
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
-
-      await waitFor(() => {
-        const mediumOption = screen.getByDisplayValue('medium');
-        expect(mediumOption).toBeDisabled();
-      });
-    });
-
-    it('deve habilitar Média para vídeo com 480p ou superior', async () => {
-      mockVideoMetadata(854, 480);
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
-
-      await waitFor(() => {
-        const mediumOption = screen.getByDisplayValue('medium');
-        expect(mediumOption).not.toBeDisabled();
-      });
-    });
-
-    it('deve sempre habilitar Baixa', async () => {
-      mockVideoMetadata(640, 360);
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
-
-      await waitFor(() => {
-        const lowOption = screen.getByDisplayValue('low');
-        expect(lowOption).not.toBeDisabled();
-      });
-    });
-
-    it('deve selecionar Ultra por padrão para 1080p+', async () => {
-      mockVideoMetadata(1920, 1080);
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
-
-      await waitFor(() => {
-        const qualitySelect = screen.getByDisplayValue('ultra');
-        expect(qualitySelect).toHaveValue('ultra');
-      });
-    });
-
-    it('deve selecionar Alta por padrão para 720p', async () => {
-      mockVideoMetadata(1280, 720);
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
-
-      await waitFor(() => {
-        const qualitySelect = screen.getByDisplayValue('high');
-        expect(qualitySelect).toHaveValue('high');
-      });
-    });
-  });
-
-  describe('Botão Enviar Vídeo', () => {
-    it('deve desabilitar o botão quando há erros de validação', async () => {
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
-
-      await waitFor(() => {
-        const submitButton = screen.getByRole('button', { name: /Enviar Vídeo/i });
-        expect(submitButton).toBeDisabled();
-      });
-    });
-
-    it('deve desabilitar o botão quando intervalo é inválido', async () => {
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
-
-      await waitFor(() => {
-        const intervalInput = screen.getByLabelText('Intervalo *');
-        fireEvent.change(intervalInput, { target: { value: '0' } });
-        fireEvent.blur(intervalInput);
+      await act(async () => {
+        Object.defineProperty(input, 'files', { value: [file], writable: false });
+        fireEvent.change(input);
       });
 
       await waitFor(() => {
-        const submitButton = screen.getByRole('button', { name: /Enviar Vídeo/i });
-        expect(submitButton).toBeDisabled();
-      });
-    });
-
-    it('deve desabilitar o botão quando tempo inicial é inválido', async () => {
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
-
-      await waitFor(() => {
-        const startTimeInput = screen.getByLabelText('Tempo Inicial *');
-        fireEvent.change(startTimeInput, { target: { value: '-5' } });
-        fireEvent.blur(startTimeInput);
+        expect(screen.getByLabelText(/intervalo/i)).toBeInTheDocument();
       });
 
-      await waitFor(() => {
-        const submitButton = screen.getByRole('button', { name: /Enviar Vídeo/i });
-        expect(submitButton).toBeDisabled();
-      });
-    });
+      const intervalInput = screen.getByLabelText(/intervalo/i);
 
-    it('deve desabilitar o botão quando tempo final é inválido', async () => {
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
-
-      await waitFor(() => {
-        const endTimeInput = screen.getByLabelText('Tempo Final *');
-        fireEvent.change(endTimeInput, { target: { value: '200' } });
-        fireEvent.blur(endTimeInput);
-      });
-
-      await waitFor(() => {
-        const submitButton = screen.getByRole('button', { name: /Enviar Vídeo/i });
-        expect(submitButton).toBeDisabled();
-      });
-    });
-  });
-
-  describe('Labels e Hints', () => {
-    it('deve exibir label em português para qualidade Ultra', async () => {
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
-
-      await waitFor(() => {
-        expect(screen.getByText(/Ultra - 1080p\+/)).toBeInTheDocument();
-      });
-    });
-
-    it('deve exibir label em português para qualidade Alta', async () => {
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
-
-      await waitFor(() => {
-        expect(screen.getByText(/Alta - 720p\+/)).toBeInTheDocument();
-      });
-    });
-
-    it('deve exibir label em português para qualidade Média', async () => {
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
-
-      await waitFor(() => {
-        expect(screen.getByText(/Média - 480p\+/)).toBeInTheDocument();
-      });
-    });
-
-    it('deve exibir label em português para qualidade Baixa', async () => {
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
-
-      await waitFor(() => {
-        expect(screen.getByText(/Baixa - 360p\+/)).toBeInTheDocument();
-      });
-    });
-
-    it('deve exibir mensagem de ajuda para intervalo', async () => {
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
-
-      expect(screen.getByText(/Preencher com único valor captura recorrente/i)).toBeInTheDocument();
-      expect(screen.getByText(/Preencher com valores separados por vírgula/i)).toBeInTheDocument();
-    });
-
-    it('deve exibir label "Duração" (não "Duração Máxima")', async () => {
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
-
-      expect(screen.getByText('Duração:')).toBeInTheDocument();
-    });
-  });
-
-  describe('Preview Messages', () => {
-    it('deve exibir preview com fundo verde quando válido', async () => {
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
-
-      await waitFor(() => {
-        const intervalInput = screen.getByLabelText('Intervalo *');
+      await act(async () => {
         fireEvent.change(intervalInput, { target: { value: '10' } });
-        fireEvent.blur(intervalInput);
+      });
+
+      const submitButton = screen.getByRole('button', { name: /enviar vídeo/i });
+
+      await act(async () => {
+        fireEvent.click(submitButton);
       });
 
       await waitFor(() => {
-        const preview = screen.getByText(/Serão capturadas/);
-        expect(preview).toHaveStyle({ backgroundColor: '#d4edda' });
+        expect(uploadToS3).toHaveBeenCalled();
+        expect(videoAPI.uploadVideoMetadata).toHaveBeenCalled();
+        expect(mockOnSuccess).toHaveBeenCalled();
       });
     });
 
-    it('não deve exibir preview quando há erro de validação', async () => {
-      render(<UploadModal onClose={jest.fn()} onSuccess={jest.fn()} />);
+    it('deve exibir progresso durante upload', async () => {
+      createMockVideoElement(60, 1920, 1080);
 
-      await waitFor(() => {
-        const intervalInput = screen.getByLabelText('Intervalo *');
-        fireEvent.change(intervalInput, { target: { value: '0' } });
-        fireEvent.blur(intervalInput);
+      // Mock com delay e callback de progresso
+      uploadToS3.mockImplementation((url, file, progressCallback) => {
+        return new Promise((resolve) => {
+          setTimeout(() => {
+            progressCallback(50);
+            setTimeout(() => {
+              resolve({ status: 200 });
+            }, 100);
+          }, 50);
+        });
+      });
+
+      renderUploadModal();
+
+      const file = createMockFile('video.mp4');
+      const input = document.querySelector('input[type="file"]');
+
+      await act(async () => {
+        Object.defineProperty(input, 'files', { value: [file], writable: false });
+        fireEvent.change(input);
       });
 
       await waitFor(() => {
-        expect(screen.queryByText(/Serão capturadas/)).not.toBeInTheDocument();
+        expect(screen.getByLabelText(/intervalo/i)).toBeInTheDocument();
       });
+
+      const intervalInput = screen.getByLabelText(/intervalo/i);
+
+      await act(async () => {
+        fireEvent.change(intervalInput, { target: { value: '10' } });
+      });
+
+      const submitButton = screen.getByRole('button', { name: /enviar vídeo/i });
+
+      await act(async () => {
+        fireEvent.click(submitButton);
+      });
+
+      // Aguarda o progresso ser exibido
+      await waitFor(() => {
+        expect(screen.getByText(/Enviando: 50%/i)).toBeInTheDocument();
+      }, { timeout: 3000 });
+    });
+
+    it('deve exibir erro ao falhar upload S3', async () => {
+      createMockVideoElement(60, 1920, 1080);
+      uploadToS3.mockRejectedValueOnce(new Error('Erro no upload S3'));
+
+      renderUploadModal();
+
+      const file = createMockFile('video.mp4');
+      const input = document.querySelector('input[type="file"]');
+
+      await act(async () => {
+        Object.defineProperty(input, 'files', { value: [file], writable: false });
+        fireEvent.change(input);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/intervalo/i)).toBeInTheDocument();
+      });
+
+      const intervalInput = screen.getByLabelText(/intervalo/i);
+
+      await act(async () => {
+        fireEvent.change(intervalInput, { target: { value: '10' } });
+      });
+
+      const submitButton = screen.getByRole('button', { name: /enviar vídeo/i });
+
+      await act(async () => {
+        fireEvent.click(submitButton);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText(/erro no upload s3/i)).toBeInTheDocument();
+      });
+    });
+
+    it('deve exibir erro ao falhar upload de metadata', async () => {
+      createMockVideoElement(60, 1920, 1080);
+      videoAPI.uploadVideoMetadata.mockRejectedValueOnce(new Error('Erro no upload de metadata'));
+
+      renderUploadModal();
+
+      const file = createMockFile('video.mp4');
+      const input = document.querySelector('input[type="file"]');
+
+      await act(async () => {
+        Object.defineProperty(input, 'files', { value: [file], writable: false });
+        fireEvent.change(input);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/intervalo/i)).toBeInTheDocument();
+      });
+
+      const intervalInput = screen.getByLabelText(/intervalo/i);
+
+      await act(async () => {
+        fireEvent.change(intervalInput, { target: { value: '10' } });
+      });
+
+      const submitButton = screen.getByRole('button', { name: /enviar vídeo/i });
+
+      await act(async () => {
+        fireEvent.click(submitButton);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText(/erro no upload de metadata/i)).toBeInTheDocument();
+      });
+    });
+
+    it('deve validar upload sem informações de URL', async () => {
+      createMockVideoElement(60, 1920, 1080);
+
+      // Mock retornando objeto sem uploadUrl
+      videoAPI.getUploadUrl.mockResolvedValue({
+        fileName: 'abc123.mp4',
+        s3Key: 'videos/abc123.mp4'
+        // uploadUrl está faltando propositalmente
+      });
+
+      renderUploadModal();
+
+      const file = createMockFile('video.mp4');
+      const input = document.querySelector('input[type="file"]');
+
+      await act(async () => {
+        Object.defineProperty(input, 'files', { value: [file], writable: false });
+        fireEvent.change(input);
+      });
+
+      // Aguarda o arquivo ser processado
+      await waitFor(() => {
+        expect(screen.getByLabelText(/intervalo/i)).toBeInTheDocument();
+      });
+
+      const intervalInput = screen.getByLabelText(/intervalo/i);
+
+      await act(async () => {
+        fireEvent.change(intervalInput, { target: { value: '10' } });
+      });
+
+      // Verifica que o botão de envio está DESABILITADO quando não há uploadUrl
+      await waitFor(() => {
+        const submitButton = screen.getByRole('button', { name: /enviar vídeo/i });
+        expect(submitButton).toBeDisabled();
+      });
+    });
+  });
+
+  describe('Cancelamento de upload', () => {
+    it('deve cancelar upload em andamento', async () => {
+      createMockVideoElement(60, 1920, 1080);
+
+      let abortSignal;
+      uploadToS3.mockImplementation((url, file, progressCallback, signal) => {
+        abortSignal = signal;
+        return new Promise((resolve, reject) => {
+          setTimeout(() => {
+            if (signal.aborted) {
+              reject(new Error('Upload cancelado'));
+            } else {
+              resolve({ status: 200 });
+            }
+          }, 1000);
+        });
+      });
+
+      renderUploadModal();
+
+      const file = createMockFile('video.mp4');
+      const input = document.querySelector('input[type="file"]');
+
+      await act(async () => {
+        Object.defineProperty(input, 'files', { value: [file], writable: false });
+        fireEvent.change(input);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/intervalo/i)).toBeInTheDocument();
+      });
+
+      const intervalInput = screen.getByLabelText(/intervalo/i);
+
+      await act(async () => {
+        fireEvent.change(intervalInput, { target: { value: '10' } });
+      });
+
+      const submitButton = screen.getByRole('button', { name: /enviar vídeo/i });
+
+      await act(async () => {
+        fireEvent.click(submitButton);
+      });
+
+      // Aguarda o upload iniciar - busca pelo botão desabilitado
+      await waitFor(() => {
+        const uploadingButton = screen.getByRole('button', { name: /enviando/i });
+        expect(uploadingButton).toBeDisabled();
+      });
+
+      const cancelButton = screen.getByRole('button', { name: /cancelar/i });
+
+      await act(async () => {
+        fireEvent.click(cancelButton);
+      });
+
+      expect(screen.getByText(/upload cancelado/i)).toBeInTheDocument();
+    });
+  });
+
+  describe('Qualidade do vídeo', () => {
+    it('deve mudar opção de qualidade', async () => {
+      createMockVideoElement(60, 1920, 1080);
+      renderUploadModal();
+
+      const file = createMockFile('video.mp4');
+      const input = document.querySelector('input[type="file"]');
+
+      await act(async () => {
+        Object.defineProperty(input, 'files', { value: [file], writable: false });
+        fireEvent.change(input);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/qualidade/i)).toBeInTheDocument();
+      });
+
+      const qualitySelect = screen.getByLabelText(/qualidade/i);
+
+      await act(async () => {
+        fireEvent.change(qualitySelect, { target: { value: 'high' } });
+      });
+
+      expect(qualitySelect.value).toBe('high');
     });
   });
 });

@@ -1,367 +1,255 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { signOut, fetchUserAttributes } from 'aws-amplify/auth';
 import Dashboard from './Dashboard';
 import { videoAPI } from '../../services/api';
 
-// Mock dependencies
-jest.mock('aws-amplify/auth', () => ({
-  getCurrentUser: jest.fn(),
-  signOut: jest.fn()
-}));
-
+// Mock do api
 jest.mock('../../services/api', () => ({
   videoAPI: {
     getVideos: jest.fn(),
-    deleteVideo: jest.fn()
-  }
+    downloadVideo: jest.fn(),
+  },
 }));
 
-const { getCurrentUser, signOut } = require('aws-amplify/auth');
+// Mock dos componentes filhos
+jest.mock('./VideoTable', () => {
+  return function MockVideoTable({ videos, loading, onDownload, onViewLogs }) {
+    return (
+      <div data-testid="video-table">
+        {loading && <span>Loading...</span>}
+        {videos.map(v => (
+          <div key={v.id} data-testid={`video-${v.id}`}>
+            <span>{v.fileName}</span>
+            <button onClick={() => onDownload(v)} data-testid={`download-${v.id}`}>Download</button>
+            <button onClick={() => onViewLogs(v)} data-testid={`logs-${v.id}`}>Logs</button>
+          </div>
+        ))}
+      </div>
+    );
+  };
+});
 
-// Mock UploadModal and LogsModal
 jest.mock('./UploadModal', () => {
-  return function DummyUploadModal({ onClose, onSuccess }) {
+  return function MockUploadModal({ onClose, onSuccess }) {
     return (
       <div data-testid="upload-modal">
-        <button onClick={onClose}>Close Modal</button>
-        <button onClick={onSuccess}>Success</button>
+        <button onClick={onClose} data-testid="close-upload">Close</button>
+        <button onClick={onSuccess} data-testid="upload-success">Upload Success</button>
       </div>
     );
   };
 });
 
 jest.mock('./LogsModal', () => {
-  return function DummyLogsModal({ onClose, video }) {
+  return function MockLogsModal({ video, onClose }) {
     return (
       <div data-testid="logs-modal">
-        <span>{video?.id}</span>
-        <button onClick={onClose}>Close Modal</button>
+        <span>Logs for: {video.fileName}</span>
+        <button onClick={onClose} data-testid="close-logs">Close</button>
       </div>
     );
   };
 });
 
 describe('Dashboard Component', () => {
-  const mockUser = {
-    userId: 'test-user-123',
-    username: 'testuser'
-  };
-
+  const mockOnSignOut = jest.fn();
   const mockVideos = [
-    {
-      id: 1,
-      fileName: 'video1.mp4',
-      quality: 'ultra',
-      status: 'completed',
-      uploadedAt: '2026-01-13T10:00:00Z',
-      processedAt: '2026-01-13T10:30:00Z'
-    },
-    {
-      id: 2,
-      fileName: 'video2.mp4',
-      quality: 'high',
-      status: 'processing',
-      uploadedAt: '2026-01-13T11:00:00Z',
-      processedAt: null
-    }
+    { id: 1, fileName: 'video1.mp4', status: 'FINISHED', logs: [] },
+    { id: 2, fileName: 'video2.mp4', status: 'PROCESSING', logs: [] },
   ];
 
   beforeEach(() => {
     jest.clearAllMocks();
-    getCurrentUser.mockResolvedValue(mockUser);
+    fetchUserAttributes.mockResolvedValue({ name: 'Test User', email: 'test@example.com' });
     videoAPI.getVideos.mockResolvedValue(mockVideos);
   });
 
-  describe('Rendering', () => {
-    it('deve renderizar o componente Dashboard corretamente', async () => {
-      render(<Dashboard />);
+  const renderDashboard = () => {
+    return render(<Dashboard onSignOut={mockOnSignOut} />);
+  };
 
+  describe('Renderização', () => {
+    it('deve renderizar o header com nome do usuário', async () => {
+      renderDashboard();
       await waitFor(() => {
-        expect(screen.getByText(/Video Slice/i)).toBeInTheDocument();
+        expect(screen.getByText(/olá, test user/i)).toBeInTheDocument();
       });
     });
 
-    it('deve exibir botão de logout', async () => {
-      render(<Dashboard />);
-
+    it('deve renderizar título do dashboard', async () => {
+      renderDashboard();
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: /logout/i })).toBeInTheDocument();
+        expect(screen.getByText(/video slice - dashboard/i)).toBeInTheDocument();
       });
     });
 
-    it('deve exibir botão para novo upload', async () => {
-      render(<Dashboard />);
-
+    it('deve usar email quando name não está disponível', async () => {
+      fetchUserAttributes.mockResolvedValue({ email: 'test@example.com' });
+      renderDashboard();
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: /novo upload/i })).toBeInTheDocument();
+        expect(screen.getByText(/olá, test@example.com/i)).toBeInTheDocument();
       });
     });
 
-    it('deve exibir filtros de vídeo', async () => {
-      render(<Dashboard />);
-
+    it('deve usar "Usuário" como fallback', async () => {
+      fetchUserAttributes.mockResolvedValue({});
+      renderDashboard();
       await waitFor(() => {
-        expect(screen.getByText(/Filtros/i)).toBeInTheDocument();
-      });
-    });
-
-    it('deve exibir tabela de vídeos', async () => {
-      render(<Dashboard />);
-
-      await waitFor(() => {
-        expect(screen.getByText(/video1.mp4/i)).toBeInTheDocument();
+        expect(screen.getByText(/olá, usuário/i)).toBeInTheDocument();
       });
     });
   });
 
-  describe('User Information', () => {
-    it('deve exibir o username do usuário logado', async () => {
-      render(<Dashboard />);
-
-      await waitFor(() => {
-        expect(screen.getByText(/testuser/i)).toBeInTheDocument();
-      });
-    });
-
-    it('deve buscar informações do usuário ao montar', async () => {
-      render(<Dashboard />);
-
-      await waitFor(() => {
-        expect(getCurrentUser).toHaveBeenCalled();
-      });
-    });
-  });
-
-  describe('Videos List', () => {
-    it('deve listar os vídeos retornados pela API', async () => {
-      render(<Dashboard />);
-
-      await waitFor(() => {
-        expect(screen.getByText('video1.mp4')).toBeInTheDocument();
-        expect(screen.getByText('video2.mp4')).toBeInTheDocument();
-      });
-    });
-
-    it('deve exibir status dos vídeos', async () => {
-      render(<Dashboard />);
-
-      await waitFor(() => {
-        expect(screen.getByText(/completed/i)).toBeInTheDocument();
-        expect(screen.getByText(/processing/i)).toBeInTheDocument();
-      });
-    });
-
-    it('deve exibir qualidade dos vídeos', async () => {
-      render(<Dashboard />);
-
-      await waitFor(() => {
-        expect(screen.getByText(/ultra/i)).toBeInTheDocument();
-        expect(screen.getByText(/high/i)).toBeInTheDocument();
-      });
-    });
-
-    it('deve exibir mensagem quando não há vídeos', async () => {
-      videoAPI.getVideos.mockResolvedValue([]);
-
-      render(<Dashboard />);
-
-      await waitFor(() => {
-        expect(screen.getByText(/Nenhum vídeo/i)).toBeInTheDocument();
-      });
-    });
-
-    it('deve carregar vídeos novamente ao montar', async () => {
-      render(<Dashboard />);
-
+  describe('Carregamento de vídeos', () => {
+    it('deve carregar vídeos na inicialização', async () => {
+      renderDashboard();
       await waitFor(() => {
         expect(videoAPI.getVideos).toHaveBeenCalled();
+        expect(screen.getByTestId('video-table')).toBeInTheDocument();
+      });
+    });
+
+    it('deve exibir erro quando API falha', async () => {
+      videoAPI.getVideos.mockRejectedValue(new Error('API Error'));
+      renderDashboard();
+      await waitFor(() => {
+        expect(screen.getByText(/erro ao carregar vídeos/i)).toBeInTheDocument();
+      });
+    });
+
+    it('deve recarregar vídeos ao clicar em Atualizar', async () => {
+      renderDashboard();
+
+      // Aguarda o carregamento inicial completar
+      await waitFor(() => {
+        expect(videoAPI.getVideos).toHaveBeenCalledTimes(1);
+        expect(screen.getByTestId('video-table')).toBeInTheDocument();
+      });
+
+      // Aguarda o botão estar habilitado (loading = false)
+      const refreshButton = screen.getByText(/atualizar/i);
+      await waitFor(() => {
+        expect(refreshButton).not.toBeDisabled();
+      });
+
+      fireEvent.click(refreshButton);
+
+      await waitFor(() => {
+        expect(videoAPI.getVideos).toHaveBeenCalledTimes(2);
+      });
+    });
+  });
+
+  describe('Sign Out', () => {
+    it('deve fazer sign out ao clicar no botão', async () => {
+      signOut.mockResolvedValue({});
+      renderDashboard();
+      await waitFor(() => {
+        expect(screen.getByText(/olá, test user/i)).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /sair/i }));
+      await waitFor(() => {
+        expect(signOut).toHaveBeenCalled();
+        expect(mockOnSignOut).toHaveBeenCalled();
       });
     });
   });
 
   describe('Upload Modal', () => {
-    it('deve abrir modal de upload ao clicar no botão', async () => {
-      render(<Dashboard />);
-
-      const uploadButton = await screen.findByRole('button', { name: /novo upload/i });
-      fireEvent.click(uploadButton);
-
+    it('deve abrir modal de upload', async () => {
+      renderDashboard();
       await waitFor(() => {
-        expect(screen.getByTestId('upload-modal')).toBeInTheDocument();
+        expect(screen.getByTestId('video-table')).toBeInTheDocument();
       });
+
+      fireEvent.click(screen.getByText(/upload novo vídeo/i));
+      expect(screen.getByTestId('upload-modal')).toBeInTheDocument();
     });
 
-    it('deve fechar modal de upload ao clicar no botão de fechar', async () => {
-      render(<Dashboard />);
-
-      const uploadButton = await screen.findByRole('button', { name: /novo upload/i });
-      fireEvent.click(uploadButton);
-
+    it('deve fechar modal de upload', async () => {
+      renderDashboard();
       await waitFor(() => {
-        expect(screen.getByTestId('upload-modal')).toBeInTheDocument();
+        expect(screen.getByTestId('video-table')).toBeInTheDocument();
       });
 
-      const closeButton = screen.getByText('Close Modal');
-      fireEvent.click(closeButton);
+      fireEvent.click(screen.getByText(/upload novo vídeo/i));
+      expect(screen.getByTestId('upload-modal')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByTestId('close-upload'));
+      expect(screen.queryByTestId('upload-modal')).not.toBeInTheDocument();
+    });
+
+    it('deve recarregar vídeos após upload bem sucedido', async () => {
+      renderDashboard();
+
+      // Aguarda o carregamento inicial completar
+      await waitFor(() => {
+        expect(videoAPI.getVideos).toHaveBeenCalledTimes(1);
+        expect(screen.getByTestId('video-table')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText(/upload novo vídeo/i));
+      fireEvent.click(screen.getByTestId('upload-success'));
 
       await waitFor(() => {
+        expect(videoAPI.getVideos).toHaveBeenCalledTimes(2);
         expect(screen.queryByTestId('upload-modal')).not.toBeInTheDocument();
-      });
-    });
-
-    it('deve recarregar vídeos após upload bem-sucedido', async () => {
-      render(<Dashboard />);
-
-      const uploadButton = await screen.findByRole('button', { name: /novo upload/i });
-      fireEvent.click(uploadButton);
-
-      await waitFor(() => {
-        expect(screen.getByTestId('upload-modal')).toBeInTheDocument();
-      });
-
-      const successButton = screen.getByText('Success');
-      fireEvent.click(successButton);
-
-      await waitFor(() => {
-        expect(videoAPI.getVideos).toHaveBeenCalledTimes(2); // Uma no mount, uma após sucesso
       });
     });
   });
 
   describe('Logs Modal', () => {
-    it('deve abrir modal de logs ao clicar em um vídeo', async () => {
-      render(<Dashboard />);
-
+    it('deve abrir modal de logs', async () => {
+      renderDashboard();
       await waitFor(() => {
-        expect(screen.getByText('video1.mp4')).toBeInTheDocument();
+        expect(screen.getByTestId('video-1')).toBeInTheDocument();
       });
 
-      const videoRow = screen.getByText('video1.mp4').closest('tr');
-      fireEvent.click(videoRow);
-
-      await waitFor(() => {
-        expect(screen.getByTestId('logs-modal')).toBeInTheDocument();
-      });
+      fireEvent.click(screen.getByTestId('logs-1'));
+      expect(screen.getByTestId('logs-modal')).toBeInTheDocument();
+      expect(screen.getByText(/logs for: video1.mp4/i)).toBeInTheDocument();
     });
 
     it('deve fechar modal de logs', async () => {
-      render(<Dashboard />);
-
+      renderDashboard();
       await waitFor(() => {
-        expect(screen.getByText('video1.mp4')).toBeInTheDocument();
+        expect(screen.getByTestId('video-1')).toBeInTheDocument();
       });
 
-      const videoRow = screen.getByText('video1.mp4').closest('tr');
-      fireEvent.click(videoRow);
+      fireEvent.click(screen.getByTestId('logs-1'));
+      expect(screen.getByTestId('logs-modal')).toBeInTheDocument();
 
-      await waitFor(() => {
-        expect(screen.getByTestId('logs-modal')).toBeInTheDocument();
-      });
-
-      const closeButton = screen.getByText('Close Modal', { selector: '[data-testid="logs-modal"] button' });
-      fireEvent.click(closeButton);
-
-      await waitFor(() => {
-        expect(screen.queryByTestId('logs-modal')).not.toBeInTheDocument();
-      });
-    });
-
-    it('deve passar o vídeo selecionado para o modal de logs', async () => {
-      render(<Dashboard />);
-
-      await waitFor(() => {
-        expect(screen.getByText('video1.mp4')).toBeInTheDocument();
-      });
-
-      const videoRow = screen.getByText('video1.mp4').closest('tr');
-      fireEvent.click(videoRow);
-
-      await waitFor(() => {
-        const logsModal = screen.getByTestId('logs-modal');
-        expect(logsModal).toBeInTheDocument();
-        expect(logsModal).toHaveTextContent('1');
-      });
+      fireEvent.click(screen.getByTestId('close-logs'));
+      expect(screen.queryByTestId('logs-modal')).not.toBeInTheDocument();
     });
   });
 
-  describe('Logout', () => {
-    it('deve fazer logout ao clicar no botão', async () => {
-      render(<Dashboard />);
-
-      const logoutButton = await screen.findByRole('button', { name: /logout/i });
-      fireEvent.click(logoutButton);
-
+  describe('Download', () => {
+    it('deve chamar downloadVideo ao clicar em download', async () => {
+      videoAPI.downloadVideo.mockResolvedValue({ success: true });
+      renderDashboard();
       await waitFor(() => {
-        expect(signOut).toHaveBeenCalled();
+        expect(screen.getByTestId('video-1')).toBeInTheDocument();
       });
-    });
-  });
 
-  describe('Error Handling', () => {
-    it('deve exibir mensagem de erro ao falhar em buscar vídeos', async () => {
-      const errorMessage = 'Erro ao buscar vídeos';
-      videoAPI.getVideos.mockRejectedValue(new Error(errorMessage));
-
-      render(<Dashboard />);
-
+      fireEvent.click(screen.getByTestId('download-1'));
       await waitFor(() => {
-        expect(screen.getByText(/Erro ao carregar vídeos/i)).toBeInTheDocument();
+        expect(videoAPI.downloadVideo).toHaveBeenCalledWith(1);
       });
     });
 
-    it('deve exibir mensagem de erro ao falhar em deletar vídeo', async () => {
-      render(<Dashboard />);
-
+    it('deve exibir alerta quando download falha', async () => {
+      videoAPI.downloadVideo.mockRejectedValue(new Error('Download failed'));
+      renderDashboard();
       await waitFor(() => {
-        expect(screen.getByText('video1.mp4')).toBeInTheDocument();
+        expect(screen.getByTestId('video-1')).toBeInTheDocument();
       });
 
-      videoAPI.deleteVideo.mockRejectedValue(new Error('Erro ao deletar'));
-
-      const deleteButton = screen.getAllByRole('button', { name: /deletar/i })[0];
-      fireEvent.click(deleteButton);
-
+      fireEvent.click(screen.getByTestId('download-1'));
       await waitFor(() => {
-        expect(screen.getByText(/Erro ao deletar/i)).toBeInTheDocument();
-      });
-    });
-  });
-
-  describe('Video Deletion', () => {
-    it('deve deletar vídeo ao confirmar', async () => {
-      render(<Dashboard />);
-
-      await waitFor(() => {
-        expect(screen.getByText('video1.mp4')).toBeInTheDocument();
-      });
-
-      const deleteButton = screen.getAllByRole('button', { name: /deletar/i })[0];
-      fireEvent.click(deleteButton);
-
-      // Confirma a exclusão
-      const confirmButton = await screen.findByRole('button', { name: /confirmar/i });
-      fireEvent.click(confirmButton);
-
-      await waitFor(() => {
-        expect(videoAPI.deleteVideo).toHaveBeenCalledWith(1);
-      });
-    });
-
-    it('deve recarregar vídeos após deletar', async () => {
-      render(<Dashboard />);
-
-      await waitFor(() => {
-        expect(videoAPI.getVideos).toHaveBeenCalled();
-      });
-
-      const deleteButton = screen.getAllByRole('button', { name: /deletar/i })[0];
-      fireEvent.click(deleteButton);
-
-      const confirmButton = await screen.findByRole('button', { name: /confirmar/i });
-      fireEvent.click(confirmButton);
-
-      await waitFor(() => {
-        expect(videoAPI.getVideos).toHaveBeenCalledTimes(2);
+        expect(global.alert).toHaveBeenCalledWith('Erro ao baixar vídeo. Tente novamente.');
       });
     });
   });

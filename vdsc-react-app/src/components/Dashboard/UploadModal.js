@@ -559,9 +559,9 @@ const UploadModal = ({ onClose, onSuccess }) => {
       // Parse interval to array format
       const timeIntervalArray = formData.interval.split(',').map(i => i.trim());
       
-      // Format timestamp as ISO 8601 (2026-01-13T00:00:00Z)
+      // Format timestamp as ISO 8601 (2026-01-13T00:00:00Z) - without milliseconds
       const now = new Date();
-      const timestamp = now.toISOString();
+      const timestamp = now.toISOString().split('.')[0] + 'Z';
 
       // Step 3: Send metadata to API Gateway
       console.log('Sending metadata to API...');
@@ -569,7 +569,7 @@ const UploadModal = ({ onClose, onSuccess }) => {
       // Create upload log entry
       const uploadLog = {
         timestamp: timestamp,
-        info: `Arquivo ${formData.fileName}.${videoExtension} carregado com sucesso!`
+        info: `Upload realizado com sucesso`
       };
 
       const videoMetadata = {

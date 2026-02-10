@@ -24,6 +24,13 @@ export const amplifyConfig = {
         requireSpecialCharacters: true
       }
     }
+  },
+  API: {
+    GraphQL: {
+      endpoint: process.env.REACT_APP_APPSYNC_ENDPOINT,
+      region: process.env.REACT_APP_AWS_REGION || 'us-east-1',
+      defaultAuthMode: 'iam'
+    }
   }
 };
 

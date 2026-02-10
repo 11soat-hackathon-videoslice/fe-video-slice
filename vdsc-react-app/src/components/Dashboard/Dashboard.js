@@ -4,6 +4,7 @@ import { videoAPI } from '../../services/api';
 import VideoTable from './VideoTable';
 import UploadModal from './UploadModal';
 import LogsModal from './LogsModal';
+import NotificationIcon from './NotificationIcon';
 import './Dashboard.css';
 
 const Dashboard = ({ onSignOut }) => {
@@ -85,6 +86,7 @@ const Dashboard = ({ onSignOut }) => {
           </div>
           <div className="user-info">
             <span className="user-name">Olá, {userName}</span>
+            <NotificationIcon />
             <button className="btn-logout" onClick={handleSignOut}>
               Sair
             </button>
