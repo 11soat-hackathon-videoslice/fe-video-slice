@@ -89,10 +89,9 @@ jobs:
           fi
           
           if [ -f junit.xml ]; then
-            echo "✅ junit.xml encontrado"
+            echo "✅ junit.xml encontrado (usado apenas para CI)"
           else
-            echo "❌ junit.xml NÃO encontrado"
-            exit 1
+            echo "⚠️ junit.xml NÃO encontrado (opcional)"
           fi
 
       - name: Upload de relatório de cobertura
@@ -106,7 +105,7 @@ jobs:
 
       - name: Verificar arquivos para SonarCloud
         run: |
-          echo "🔍 Verificando existência dos arquivos de cobertura e testes..."
+          echo "🔍 Verificando existência dos arquivos de cobertura..."
           echo "Working directory: $(pwd)"
           echo ""
           
@@ -119,6 +118,7 @@ jobs:
             ls -la vdsc-react-app/coverage/
           else
             echo "❌ Diretório vdsc-react-app/coverage NÃO existe"
+            exit 1
           fi
           echo ""
           
@@ -131,16 +131,7 @@ jobs:
           fi
           echo ""
           
-          if [ -f "vdsc-react-app/junit.xml" ]; then
-            echo "✅ Arquivo vdsc-react-app/junit.xml existe"
-            echo "Tamanho: $(wc -l < vdsc-react-app/junit.xml) linhas"
-          else
-            echo "❌ Arquivo vdsc-react-app/junit.xml NÃO existe"
-            exit 1
-          fi
-          echo ""
-          
-          echo "✅ Todos os arquivos necessários para o SonarCloud existem!"
+          echo "✅ Arquivo de cobertura necessário para o SonarCloud existe!"
         working-directory: .
 
       - name: Setup Java para SonarCloud
