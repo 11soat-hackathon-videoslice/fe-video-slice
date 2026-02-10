@@ -19,7 +19,7 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "test:ci": "react-scripts test --ci --coverage --watchAll=false --testResultsProcessor=jest-junit",
+    "test:ci": "react-scripts test --ci --coverage --watchAll=false --testResultsProcessor=jest-junit --silent",
     "sonar": "sonar-scanner",
     "eject": "react-scripts eject"
   },
