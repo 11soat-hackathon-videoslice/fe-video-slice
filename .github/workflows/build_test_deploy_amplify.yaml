@@ -148,7 +148,7 @@ jobs:
        (needs.tests-and-coverage.result == 'skipped' && github.event.inputs.deploy_only == 'true')) &&
       (needs.approval.result == 'success' || needs.approval.result == 'skipped')
     environment:
-      name: ${{ ((github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/master') && 'prod' || 'develop' }}
+      name: ${{ ((github.event_name == 'pull_request' && github.base_ref == 'master') || ((github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/master')) && 'prod' || 'develop' }}
     defaults:
       run:
         working-directory: vdsc-react-app
