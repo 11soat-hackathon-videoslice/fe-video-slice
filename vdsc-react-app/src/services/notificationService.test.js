@@ -15,7 +15,7 @@ jest.mock('aws-amplify/auth', () => ({
 }));
 
 // Importa após os mocks
-import { notificationService, getNotificationsByUser, markAsRead, onCreateNotification } from './notificationService';
+import { notificationService, getNotificationsByUser, markAsRead, onCreateNotification, onUpdateNotification } from './notificationService';
 import { getCurrentUser } from 'aws-amplify/auth';
 
 describe('notificationService', () => {
@@ -38,14 +38,19 @@ describe('notificationService', () => {
     test('markAsRead mutation está definida corretamente', () => {
       expect(markAsRead).toContain('mutation MarkAsRead');
       expect(markAsRead).toContain('markAsRead');
-      expect(markAsRead).toContain('$userId: ID!');
-      expect(markAsRead).toContain('$timestamp: String!');
+      expect(markAsRead).toContain('$id: ID!');
     });
 
     test('onCreateNotification subscription está definida corretamente', () => {
       expect(onCreateNotification).toContain('subscription OnCreateNotification');
       expect(onCreateNotification).toContain('onCreateNotification');
       expect(onCreateNotification).toContain('$userId: ID!');
+    });
+
+    test('onUpdateNotification subscription está definida corretamente', () => {
+      expect(onUpdateNotification).toContain('subscription OnUpdateNotification');
+      expect(onUpdateNotification).toContain('onUpdateNotification');
+      expect(onUpdateNotification).toContain('$id: ID!');
     });
   });
 
@@ -111,6 +116,13 @@ describe('notificationService', () => {
       });
     });
 
+    test('deve tratar erro de autenticação corretamente', async () => {
+      const authError = new Error('Not authenticated');
+      getCurrentUser.mockRejectedValue(authError);
+
+      await expect(notificationService.getNotifications()).rejects.toThrow('Usuário não autenticado');
+    });
+
     test('deve tratar erro ao buscar notificações', async () => {
       const mockError = new Error('Network error');
       mockGraphqlFn.mockRejectedValue(mockError);
@@ -124,7 +136,7 @@ describe('notificationService', () => {
       const mockNotification = {
         userId: 'test-user-id',
         timestamp: '2026-01-13T00:00:00Z',
-        id: '1',
+        id: 'notification-123',
         message: 'Test notification',
         isRead: true
       };
@@ -135,15 +147,15 @@ describe('notificationService', () => {
         }
       });
 
-      const result = await notificationService.markAsRead('test-user-id', '2026-01-13T00:00:00Z');
+      const result = await notificationService.markAsRead('notification-123', '2026-01-13T00:00:00Z');
 
       expect(mockGraphqlFn).toHaveBeenCalledWith({
         query: markAsRead,
         variables: {
-          userId: 'test-user-id',
+          id: 'notification-123',
           timestamp: '2026-01-13T00:00:00Z'
         },
-        authMode: 'iam'
+        authMode: 'userPool'
       });
       expect(result).toEqual(mockNotification);
     });
@@ -153,7 +165,7 @@ describe('notificationService', () => {
       mockGraphqlFn.mockRejectedValue(mockError);
 
       await expect(
-        notificationService.markAsRead('test-user-id', '2026-01-13T00:00:00Z')
+        notificationService.markAsRead('notification-123', '2026-01-13T00:00:00Z')
       ).rejects.toThrow('Update error');
     });
   });
@@ -251,6 +263,112 @@ describe('notificationService', () => {
 
       await expect(
         notificationService.subscribeToNotifications(jest.fn(), onError)
+      ).rejects.toThrow('Setup error');
+    });
+  });
+
+  describe('subscribeToNotificationUpdates', () => {
+    test('deve criar subscrição de atualizações com sucesso', async () => {
+      const mockSubscription = {
+        unsubscribe: jest.fn()
+      };
+
+      const mockSubscribe = jest.fn(() => mockSubscription);
+      mockGraphqlFn.mockReturnValue({
+        subscribe: mockSubscribe
+      });
+
+      const onUpdate = jest.fn();
+      const onError = jest.fn();
+
+      const subscription = await notificationService.subscribeToNotificationUpdates(
+        'notification-123',
+        onUpdate,
+        onError
+      );
+
+      expect(mockGraphqlFn).toHaveBeenCalledWith({
+        query: onUpdateNotification,
+        variables: { id: 'notification-123' },
+        authMode: 'iam'
+      });
+      expect(mockSubscribe).toHaveBeenCalled();
+      expect(subscription).toBe(mockSubscription);
+    });
+
+    test('deve chamar callback onUpdate quando notificação é atualizada', async () => {
+      const mockNotification = {
+        userId: 'test-user-id',
+        timestamp: '2026-01-13T00:00:00Z',
+        id: 'notification-123',
+        message: 'Updated notification',
+        isRead: true
+      };
+
+      let subscribeCallback;
+      const mockSubscribe = jest.fn((callbacks) => {
+        subscribeCallback = callbacks;
+        return { unsubscribe: jest.fn() };
+      });
+
+      mockGraphqlFn.mockReturnValue({
+        subscribe: mockSubscribe
+      });
+
+      const onUpdate = jest.fn();
+
+      await notificationService.subscribeToNotificationUpdates(
+        'notification-123',
+        onUpdate
+      );
+
+      // Simula atualização de notificação
+      subscribeCallback.next({
+        data: {
+          onUpdateNotification: mockNotification
+        }
+      });
+
+      expect(onUpdate).toHaveBeenCalledWith(mockNotification);
+    });
+
+    test('deve chamar callback onError quando ocorre erro na subscrição de atualizações', async () => {
+      const mockError = new Error('Update subscription error');
+
+      let subscribeCallback;
+      const mockSubscribe = jest.fn((callbacks) => {
+        subscribeCallback = callbacks;
+        return { unsubscribe: jest.fn() };
+      });
+
+      mockGraphqlFn.mockReturnValue({
+        subscribe: mockSubscribe
+      });
+
+      const onError = jest.fn();
+
+      await notificationService.subscribeToNotificationUpdates(
+        'notification-123',
+        jest.fn(),
+        onError
+      );
+
+      // Simula erro na subscrição
+      subscribeCallback.error(mockError);
+
+      expect(onError).toHaveBeenCalledWith(mockError);
+    });
+
+    test('deve tratar erro ao criar subscrição de atualizações', async () => {
+      const mockError = new Error('Setup error');
+      mockGraphqlFn.mockImplementation(() => {
+        throw mockError;
+      });
+
+      const onError = jest.fn();
+
+      await expect(
+        notificationService.subscribeToNotificationUpdates('notification-123', jest.fn(), onError)
       ).rejects.toThrow('Setup error');
     });
   });

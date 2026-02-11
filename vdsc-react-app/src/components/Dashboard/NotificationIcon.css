@@ -200,6 +200,57 @@
   flex-shrink: 0;
 }
 
+.notification-header-buttons {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.btn-mark-all-read {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.btn-mark-all-read:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.btn-mark-all-read:active {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.notification-close-btn {
+  background: transparent;
+  border: none;
+  color: #dc2626;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 2px;
+}
+
+.notification-close-btn:hover {
+  background-color: rgba(220, 38, 38, 0.1);
+  color: #991b1b;
+}
+
+.notification-close-btn:active {
+  background-color: rgba(220, 38, 38, 0.2);
+}
+
 @media (max-width: 480px) {
   .notification-dropdown {
     width: calc(100vw - 40px);

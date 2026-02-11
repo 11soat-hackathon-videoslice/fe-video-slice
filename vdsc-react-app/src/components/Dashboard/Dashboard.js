@@ -76,6 +76,19 @@ const Dashboard = ({ onSignOut }) => {
     setShowLogsModal(true);
   };
 
+  // Handler chamado quando uma nova notificação é recebida via subscription
+  const handleNewNotification = (notification) => {
+    console.log('Nova notificação recebida no Dashboard:', notification);
+    // Atualiza a tabela de vídeos para refletir mudanças
+    loadVideos();
+  };
+
+  // Handler chamado quando uma notificação é marcada como lida
+  const handleNotificationRead = (notification) => {
+    console.log('Notificação marcada como lida:', notification);
+    // Pode ser usado para atualizar estado específico se necessário
+  };
+
   return (
     <div className="dashboard-container">
       <header className="dashboard-header">
@@ -86,7 +99,10 @@ const Dashboard = ({ onSignOut }) => {
           </div>
           <div className="user-info">
             <span className="user-name">Olá, {userName}</span>
-            <NotificationIcon />
+            <NotificationIcon
+              onNewNotification={handleNewNotification}
+              onNotificationRead={handleNotificationRead}
+            />
             <button className="btn-logout" onClick={handleSignOut}>
               Sair
             </button>

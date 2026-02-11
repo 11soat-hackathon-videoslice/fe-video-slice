@@ -2,15 +2,24 @@ import React, { useState, useEffect, useRef } from 'react';
 import { notificationService } from '../../services/notificationService';
 import './NotificationIcon.css';
 
-const NotificationIcon = () => {
+const NotificationIcon = ({ onNewNotification, onNotificationRead }) => {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showDropdown, setShowDropdown] = useState(false);
   const [loading, setLoading] = useState(true);
   const dropdownRef = useRef(null);
   const subscriptionRef = useRef(null);
+  const notificationSoundRef = useRef(null);
+
+  // Inicializa o áudio uma única vez
+  useEffect(() => {
+    const audio = new Audio('/sounds/pop.mp3');
+    audio.preload = 'auto';
+    notificationSoundRef.current = audio;
+  }, []);
 
   useEffect(() => {
+    console.log('NotificationIcon: useEffect - Componente montado, chamando loadNotifications');
     loadNotifications();
     setupSubscription();
 
@@ -42,11 +51,21 @@ const NotificationIcon = () => {
   const loadNotifications = async () => {
     try {
       setLoading(true);
-      const result = await notificationService.getNotifications(20);
+      console.log('NotificationIcon: Carregando notificações não lidas...');
+      // Carrega apenas notificações não lidas (isRead: false)
+      const result = await notificationService.getNotifications(20, false);
+      console.log('NotificationIcon: Notificações carregadas:', result?.items?.length || 0, 'notificações');
       setNotifications(result.items || []);
       updateUnreadCount(result.items || []);
     } catch (error) {
       console.error('Erro ao carregar notificações:', error);
+      // Se for erro de autenticação, tenta novamente após 1 segundo
+      if (error.message && error.message.includes('não autenticado')) {
+        console.log('NotificationIcon: Tentando carregar notificações novamente em 1 segundo...');
+        setTimeout(() => {
+          loadNotifications();
+        }, 1000);
+      }
     } finally {
       setLoading(false);
     }
@@ -58,17 +77,43 @@ const NotificationIcon = () => {
         (newNotification) => {
           console.log('Nova notificação recebida:', newNotification);
           setNotifications(prev => {
+            // Verifica se a notificação já existe para evitar duplicatas
+            const notificationExists = prev.some(n => n.id === newNotification.id);
+            if (notificationExists) {
+              console.log('Notificação duplicada ignorada:', newNotification.id);
+              return prev;
+            }
             const updated = [newNotification, ...prev];
             updateUnreadCount(updated);
+            playNotificationSound();
+
             return updated;
           });
+          // Notifica o Dashboard para atualizar a tabela de vídeos
+          if (onNewNotification) {
+            onNewNotification(newNotification);
+          }
         },
         (error) => {
           console.error('Erro na subscrição:', error);
+          // Se for erro de autenticação, tenta novamente após 2 segundos
+          if (error.message && error.message.includes('não autenticado')) {
+            console.log('NotificationIcon: Retentando subscrição em 2 segundos...');
+            setTimeout(() => {
+              setupSubscription();
+            }, 2000);
+          }
         }
       );
     } catch (error) {
       console.error('Erro ao configurar subscrição:', error);
+      // Se for erro de autenticação, tenta novamente após 2 segundos
+      if (error.message && error.message.includes('não autenticado')) {
+        console.log('NotificationIcon: Retentando subscrição em 2 segundos...');
+        setTimeout(() => {
+          setupSubscription();
+        }, 2000);
+      }
     }
   };
 
@@ -77,29 +122,73 @@ const NotificationIcon = () => {
     setUnreadCount(count);
   };
 
+  const playNotificationSound = () => {
+    try {
+      if (notificationSoundRef.current) {
+        // Reset o áudio para poder tocar novamente imediatamente
+        notificationSoundRef.current.currentTime = 0;
+        const playPromise = notificationSoundRef.current.play();
+
+        if (playPromise !== undefined) {
+          playPromise
+            .then(() => {
+              console.log('🔊 Som de notificação tocado com sucesso');
+            })
+            .catch(error => {
+              console.warn('⚠️ Não foi possível tocar o som. O navegador pode ter bloqueado o autoplay.', error);
+            });
+        }
+      }
+    } catch (error) {
+      console.warn('❌ Erro ao tentar tocar som de notificação:', error);
+    }
+  };
+
   const handleMarkAsRead = async (notification) => {
     if (notification.isRead) return;
 
     try {
-      await notificationService.markAsRead(notification.userId, notification.timestamp);
+      // Chama markAsRead com id e timestamp
+      await notificationService.markAsRead(notification.id, notification.timestamp);
 
+      // Remove a notificação da listagem após sucesso
       setNotifications(prev =>
-        prev.map(n =>
-          n.userId === notification.userId && n.timestamp === notification.timestamp
-            ? { ...n, isRead: true }
-            : n
-        )
+        prev.filter(n => n.id !== notification.id)
       );
 
+      // Atualiza o contador de não lidas
       updateUnreadCount(
-        notifications.map(n =>
-          n.userId === notification.userId && n.timestamp === notification.timestamp
-            ? { ...n, isRead: true }
-            : n
-        )
+        notifications.filter(n => n.id !== notification.id)
       );
+
+      // Notifica o Dashboard sobre a leitura da notificação
+      if (onNotificationRead) {
+        onNotificationRead(notification);
+      }
     } catch (error) {
       console.error('Erro ao marcar como lida:', error);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    if (notifications.length === 0) return;
+
+    try {
+      console.log('NotificationIcon: Marcando todas as notificações como lidas...');
+      // Chama markAsRead para cada notificação
+      const promises = notifications.map(notification =>
+        notificationService.markAsRead(notification.id, notification.timestamp)
+      );
+
+      await Promise.all(promises);
+
+      // Remove todas as notificações da listagem
+      setNotifications([]);
+      updateUnreadCount([]);
+
+      console.log('NotificationIcon: Todas as notificações foram marcadas como lidas');
+    } catch (error) {
+      console.error('Erro ao marcar todas como lidas:', error);
     }
   };
 
@@ -160,15 +249,26 @@ const NotificationIcon = () => {
         <div className="notification-dropdown">
           <div className="notification-header">
             <h3>Notificações</h3>
-            {notifications.length > 0 && (
-              <button
-                className="btn-refresh-notifications"
-                onClick={loadNotifications}
-                disabled={loading}
-              >
-                🔄
-              </button>
-            )}
+            <div className="notification-header-buttons">
+              {notifications.length > 0 && (
+                <>
+                  <button
+                    className="btn-mark-all-read"
+                    onClick={handleMarkAllAsRead}
+                    title="Marcar todas como lidas"
+                  >
+                    ✓ Lido
+                  </button>
+                  <button
+                    className="btn-refresh-notifications"
+                    onClick={loadNotifications}
+                    disabled={loading}
+                  >
+                    🔄
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
           <div className="notification-list">
@@ -184,11 +284,10 @@ const NotificationIcon = () => {
             ) : (
               notifications.map((notification) => (
                 <div
-                  key={`${notification.userId}-${notification.timestamp}`}
+                  key={notification.id}
                   className={`notification-item ${notification.isRead ? 'read' : 'unread'}`}
-                  onClick={() => handleMarkAsRead(notification)}
                 >
-                  <div className="notification-content">
+                  <div className="notification-content" onClick={() => handleMarkAsRead(notification)}>
                     <p className="notification-message">{notification.message}</p>
                     {notification.fileName && (
                       <p className="notification-filename">📁 {notification.fileName}</p>
@@ -197,9 +296,14 @@ const NotificationIcon = () => {
                       {formatTimestamp(notification.timestamp)}
                     </span>
                   </div>
-                  {!notification.isRead && (
-                    <div className="notification-unread-indicator"></div>
-                  )}
+                  <button
+                    className="notification-close-btn"
+                    onClick={() => handleMarkAsRead(notification)}
+                    title="Marcar como lido"
+                    aria-label="Fechar notificação"
+                  >
+                    ✕
+                  </button>
                 </div>
               ))
             )}

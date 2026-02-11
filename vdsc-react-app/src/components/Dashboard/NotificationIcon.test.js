@@ -173,7 +173,7 @@ describe('NotificationIcon', () => {
     expect(screen.getByText('Carregando...')).toBeInTheDocument();
   });
 
-  test('deve marcar notificação como lida ao clicar', async () => {
+  test('deve marcar notificação como lida ao clicar no X', async () => {
     render(<NotificationIcon />);
 
     const button = await screen.findByRole('button', { name: /notificações/i });
@@ -183,14 +183,45 @@ describe('NotificationIcon', () => {
       expect(screen.getByText('Seu vídeo foi processado com sucesso')).toBeInTheDocument();
     });
 
-    const notification = screen.getByText('Seu vídeo foi processado com sucesso');
-    fireEvent.click(notification);
+    // Encontra o botão X (close)
+    const closeButtons = screen.getAllByLabelText(/fechar notificação/i);
+    fireEvent.click(closeButtons[0]);
 
     await waitFor(() => {
       expect(notificationService.markAsRead).toHaveBeenCalledWith(
-        'user-1',
+        '1',
         '2026-02-09T10:00:00Z'
       );
+    });
+
+    // Verifica que a notificação foi removida da lista
+    await waitFor(() => {
+      expect(screen.queryByText('Seu vídeo foi processado com sucesso')).not.toBeInTheDocument();
+    });
+  });
+
+  test('deve marcar todas as notificações como lidas', async () => {
+    render(<NotificationIcon />);
+
+    const button = await screen.findByRole('button', { name: /notificações/i });
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(screen.getByText('Seu vídeo foi processado com sucesso')).toBeInTheDocument();
+    });
+
+    // Encontra e clica no botão "Marcar Tudo como Lido"
+    const markAllButton = screen.getByText(/✓ Lido/i);
+    fireEvent.click(markAllButton);
+
+    await waitFor(() => {
+      // Verifica que markAsRead foi chamado para cada notificação não lida
+      expect(notificationService.markAsRead).toHaveBeenCalledTimes(1); // Apenas 1 notificação não lida
+    });
+
+    // Verifica que todas as notificações foram removidas
+    await waitFor(() => {
+      expect(screen.getByText('Nenhuma notificação')).toBeInTheDocument();
     });
   });
 
@@ -289,6 +320,41 @@ describe('NotificationIcon', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Nova notificação em tempo real')).toBeInTheDocument();
+    });
+  });
+
+  test('deve ignorar notificações duplicadas via subscrição', async () => {
+    let subscriptionCallback;
+    notificationService.subscribeToNotifications.mockImplementation((callback) => {
+      subscriptionCallback = callback;
+      return Promise.resolve(mockSubscription);
+    });
+
+    render(<NotificationIcon />);
+
+    await waitFor(() => {
+      expect(notificationService.subscribeToNotifications).toHaveBeenCalled();
+    });
+
+    // Simula a mesma notificação chegando duas vezes
+    const newNotification = {
+      userId: 'user-1',
+      timestamp: '2026-02-09T11:00:00Z',
+      id: '3',
+      message: 'Nova notificação',
+      isRead: false
+    };
+
+    subscriptionCallback(newNotification);
+    subscriptionCallback(newNotification); // Segunda vez - deve ser ignorada
+
+    const button = screen.getByRole('button', { name: /notificações/i });
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      // Verifica que a notificação aparece apenas uma vez
+      const notifications = screen.getAllByText('Nova notificação');
+      expect(notifications).toHaveLength(1);
     });
   });
 
@@ -419,6 +485,76 @@ describe('NotificationIcon', () => {
     });
 
     consoleError.mockRestore();
+  });
+
+  test('deve chamar onNewNotification quando nova notificação chega via subscrição', async () => {
+    const onNewNotification = jest.fn();
+    let subscriptionCallback;
+    notificationService.subscribeToNotifications.mockImplementation((callback) => {
+      subscriptionCallback = callback;
+      return Promise.resolve(mockSubscription);
+    });
+
+    render(<NotificationIcon onNewNotification={onNewNotification} />);
+
+    await waitFor(() => {
+      expect(notificationService.subscribeToNotifications).toHaveBeenCalled();
+    });
+
+    const newNotification = {
+      userId: 'user-1',
+      timestamp: '2026-02-09T11:00:00Z',
+      id: '3',
+      message: 'Nova notificação em tempo real',
+      isRead: false
+    };
+
+    subscriptionCallback(newNotification);
+
+    await waitFor(() => {
+      expect(onNewNotification).toHaveBeenCalledWith(newNotification);
+    });
+  });
+
+  test('deve chamar onNotificationRead quando notificação é marcada como lida', async () => {
+    const onNotificationRead = jest.fn();
+    render(<NotificationIcon onNotificationRead={onNotificationRead} />);
+
+    const button = await screen.findByRole('button', { name: /notificações/i });
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(screen.getByText('Seu vídeo foi processado com sucesso')).toBeInTheDocument();
+    });
+
+    const notification = screen.getByText('Seu vídeo foi processado com sucesso');
+    fireEvent.click(notification);
+
+    await waitFor(() => {
+      expect(onNotificationRead).toHaveBeenCalledWith(expect.objectContaining({
+        id: '1',
+        message: 'Seu vídeo foi processado com sucesso'
+      }));
+    });
+  });
+
+  test('deve carregar apenas notificações não lidas ao iniciar', async () => {
+    render(<NotificationIcon />);
+
+    await waitFor(() => {
+      expect(notificationService.getNotifications).toHaveBeenCalledWith(20, false);
+    });
+  });
+
+  test('deve chamar getNotifications quando o componente monta', async () => {
+    render(<NotificationIcon />);
+
+    await waitFor(() => {
+      expect(notificationService.getNotifications).toHaveBeenCalled();
+    });
+
+    // Verifica que foi chamado com os parâmetros corretos
+    expect(notificationService.getNotifications).toHaveBeenCalledWith(20, false);
   });
 });
 

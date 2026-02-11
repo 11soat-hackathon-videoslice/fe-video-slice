@@ -4,6 +4,7 @@ export const amplifyConfig = {
     Cognito: {
       userPoolId: process.env.REACT_APP_USER_POOL_ID,
       userPoolClientId: process.env.REACT_APP_USER_POOL_CLIENT_ID,
+      allowGuestAccess: false,
       loginWith: {
         email: true
       },
@@ -29,7 +30,7 @@ export const amplifyConfig = {
     GraphQL: {
       endpoint: process.env.REACT_APP_APPSYNC_ENDPOINT,
       region: process.env.REACT_APP_AWS_REGION || 'us-east-1',
-      defaultAuthMode: 'iam'
+      defaultAuthMode: 'userPool'
     }
   }
 };
@@ -39,6 +40,7 @@ export const apiConfig = {
   region: process.env.REACT_APP_AWS_REGION || 'us-east-1',
   tableName: process.env.REACT_APP_DYNAMODB_TABLE_NAME || 'VideoSlice',
   apiUrl: process.env.REACT_APP_API_GATEWAY_URL,
+
   apiListByUserId: process.env.REACT_APP_API_LIST_BY_USER_ID || '/videos/list/userId',
   apiUploadUrl: process.env.REACT_APP_API_UPLOAD_URL || '/video/upload/url',
   apiDownloadUrl: process.env.REACT_APP_API_DOWNLOAD_URL || '/video/download/url',

@@ -52,6 +52,33 @@ jest.mock('./LogsModal', () => {
   };
 });
 
+// Mock do NotificationIcon para capturar os callbacks
+let capturedOnNewNotification = null;
+let capturedOnNotificationRead = null;
+
+jest.mock('./NotificationIcon', () => {
+  return function MockNotificationIcon({ onNewNotification, onNotificationRead }) {
+    capturedOnNewNotification = onNewNotification;
+    capturedOnNotificationRead = onNotificationRead;
+    return (
+      <div data-testid="notification-icon">
+        <button
+          onClick={() => onNewNotification && onNewNotification({ id: 'test-notification' })}
+          data-testid="trigger-new-notification"
+        >
+          New Notification
+        </button>
+        <button
+          onClick={() => onNotificationRead && onNotificationRead({ id: 'test-notification' })}
+          data-testid="trigger-notification-read"
+        >
+          Read Notification
+        </button>
+      </div>
+    );
+  };
+});
+
 describe('Dashboard Component', () => {
   const mockOnSignOut = jest.fn();
   const mockVideos = [
@@ -251,6 +278,58 @@ describe('Dashboard Component', () => {
       await waitFor(() => {
         expect(global.alert).toHaveBeenCalledWith('Erro ao baixar vídeo. Tente novamente.');
       });
+    });
+  });
+
+  describe('Notificações', () => {
+    it('deve recarregar vídeos quando nova notificação é recebida', async () => {
+      renderDashboard();
+
+      // Aguarda o carregamento inicial completar
+      await waitFor(() => {
+        expect(videoAPI.getVideos).toHaveBeenCalledTimes(1);
+        expect(screen.getByTestId('video-table')).toBeInTheDocument();
+      });
+
+      // Simula nova notificação via mock do NotificationIcon
+      fireEvent.click(screen.getByTestId('trigger-new-notification'));
+
+      await waitFor(() => {
+        expect(videoAPI.getVideos).toHaveBeenCalledTimes(2);
+      });
+    });
+
+    it('deve renderizar NotificationIcon com callbacks corretos', async () => {
+      renderDashboard();
+
+      await waitFor(() => {
+        expect(screen.getByTestId('notification-icon')).toBeInTheDocument();
+      });
+
+      // Verifica que os callbacks foram passados
+      expect(capturedOnNewNotification).toBeDefined();
+      expect(capturedOnNotificationRead).toBeDefined();
+    });
+
+    it('deve tratar callback de notificação lida', async () => {
+      const consoleLog = jest.spyOn(console, 'log').mockImplementation(() => {});
+      renderDashboard();
+
+      await waitFor(() => {
+        expect(screen.getByTestId('video-table')).toBeInTheDocument();
+      });
+
+      // Simula notificação marcada como lida
+      fireEvent.click(screen.getByTestId('trigger-notification-read'));
+
+      await waitFor(() => {
+        expect(consoleLog).toHaveBeenCalledWith(
+          'Notificação marcada como lida:',
+          expect.objectContaining({ id: 'test-notification' })
+        );
+      });
+
+      consoleLog.mockRestore();
     });
   });
 });
