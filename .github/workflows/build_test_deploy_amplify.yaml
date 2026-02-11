@@ -13,13 +13,13 @@ on:
         default: false
         type: boolean
 
-  push:
-    branches:
-      - develop
-    paths:
-      - 'vdsc-react-app/src/**'
-      - 'vdsc-react-app/public/**'
-      - 'vdsc-react-app/package.json'
+#  push:
+#    branches:
+#      - develop
+#    paths:
+#      - 'vdsc-react-app/src/**'
+#      - 'vdsc-react-app/public/**'
+#      - 'vdsc-react-app/package.json'
   pull_request:
     branches:
       - master
