@@ -1,8 +1,22 @@
 import React, { useState } from 'react';
 import { signUp, confirmSignUp, autoSignIn } from 'aws-amplify/auth';
-import './Auth.css';
+import {
+  Container,
+  Box,
+  Card,
+  TextField,
+  Button,
+  Typography,
+  Alert,
+  Stack,
+  Link,
+  CircularProgress,
+  FormHelperText,
+} from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 
 const Register = ({ onSuccess, onSwitchToLogin }) => {
+  const theme = useTheme();
   const [step, setStep] = useState('register'); // 'register' or 'confirm'
   const [formData, setFormData] = useState({
     name: '',
@@ -116,144 +130,284 @@ const Register = ({ onSuccess, onSwitchToLogin }) => {
 
   if (step === 'confirm') {
     return (
-      <div className="auth-container">
-        <div className="auth-card">
-          <div className="auth-logo">
-            <img src="/logo.png" alt="Video Slice" />
-          </div>
-          <h2>Confirmar E-mail</h2>
-          <p className="info-text">
-            Enviamos um código de confirmação para <strong>{formData.email}</strong>
-          </p>
-          <form onSubmit={handleConfirm} className="auth-form">
-            <div className="form-group">
-              <label htmlFor="confirmationCode">Código de Confirmação</label>
-              <input
-                type="text"
-                id="confirmationCode"
-                value={confirmationCode}
-                onChange={(e) => setConfirmationCode(e.target.value)}
-                required
-                placeholder="123456"
-                maxLength="6"
+      <Box
+        sx={{
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+          py: 2,
+        }}
+      >
+        <Container maxWidth="sm">
+          <Card
+            elevation={3}
+            sx={{
+              p: 4,
+              borderRadius: 2,
+            }}
+          >
+            <Box sx={{ textAlign: 'center', mb: 3 }}>
+              <Box
+                component="img"
+                src="/logo.png"
+                alt="Video Slice"
+                sx={{
+                  width: 180,
+                  height: 180,
+                  objectFit: 'contain',
+                  mb: 2,
+                }}
               />
-            </div>
+              <Typography
+                variant="h4"
+                component="h2"
+                sx={{
+                  fontWeight: 700,
+                  color: theme.palette.text.primary,
+                  mb: 2,
+                }}
+              >
+                Confirmar E-mail
+              </Typography>
+              <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 2 }}>
+                Enviamos um código de confirmação para <strong>{formData.email}</strong>
+              </Typography>
+            </Box>
 
-            {error && <div className="error-message">{error}</div>}
+            <form onSubmit={handleConfirm}>
+              <Stack spacing={2} sx={{ mb: 2 }}>
+                <TextField
+                  fullWidth
+                  id="confirmationCode"
+                  label="Código de Confirmação"
+                  type="text"
+                  value={confirmationCode}
+                  onChange={(e) => setConfirmationCode(e.target.value)}
+                  required
+                  placeholder="123456"
+                  inputProps={{ maxLength: 6 }}
+                  variant="outlined"
+                />
 
-            <button 
-              type="submit" 
-              className="btn-primary"
-              disabled={loading}
-            >
-              {loading ? 'Confirmando...' : 'Confirmar'}
-            </button>
-          </form>
+                {error && (
+                  <Alert severity="error" onClose={() => setError('')}>
+                    {error}
+                  </Alert>
+                )}
 
-          <div className="auth-links">
-            <button 
-              type="button"
-              className="link-button"
-              onClick={onSwitchToLogin}
-            >
-              Voltar para login
-            </button>
-          </div>
-        </div>
-      </div>
+                <Button
+                  type="submit"
+                  fullWidth
+                  variant="contained"
+                  size="large"
+                  disabled={loading}
+                  sx={{
+                    mt: 1,
+                    textTransform: 'none',
+                    fontSize: '1rem',
+                    fontWeight: 600,
+                  }}
+                >
+                  {loading ? (
+                    <CircularProgress size={24} sx={{ mr: 1 }} />
+                  ) : null}
+                  {loading ? 'Confirmando...' : 'Confirmar'}
+                </Button>
+              </Stack>
+            </form>
+
+            <Box sx={{ textAlign: 'center' }}>
+              <Link
+                component="button"
+                type="button"
+                variant="body2"
+                onClick={onSwitchToLogin}
+                sx={{ cursor: 'pointer' }}
+              >
+                Voltar para login
+              </Link>
+            </Box>
+          </Card>
+        </Container>
+      </Box>
     );
   }
 
   return (
-    <div className="auth-container">
-      <div className="auth-card">
-        <div className="auth-logo">
-          <img src="/logo.png" alt="Video Slice" />
-        </div>
-        <h2>Criar Conta</h2>
-        <form onSubmit={handleRegister} className="auth-form">
-          <div className="form-group">
-            <label htmlFor="name">Nome Completo</label>
-            <input
-              type="text"
-              id="name"
-              name="name"
-              value={formData.name}
-              onChange={handleChange}
-              required
-              placeholder="Seu nome completo"
-              autoComplete="name"
+    <Box
+      sx={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+        py: 2,
+      }}
+    >
+      <Container maxWidth="sm">
+        <Card
+          elevation={3}
+          sx={{
+            p: 3,
+            borderRadius: 2,
+          }}
+        >
+          <Box sx={{ textAlign: 'center', mb: 2 }}>
+            <Box
+              component="img"
+              src="/logo.png"
+              alt="Video Slice"
+              sx={{
+                width: 120,
+                height: 120,
+                objectFit: 'contain',
+                mb: 1.5,
+              }}
             />
-          </div>
+            <Typography
+              variant="h5"
+              component="h2"
+              sx={{
+                fontWeight: 700,
+                color: theme.palette.text.primary,
+                mb: 2,
+              }}
+            >
+              Criar Conta
+            </Typography>
+          </Box>
 
-          <div className="form-group">
-            <label htmlFor="email">E-mail</label>
-            <input
-              type="email"
-              id="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              required
-              placeholder="seu@email.com"
-              autoComplete="email"
-            />
-          </div>
+          <form onSubmit={handleRegister}>
+            <Stack spacing={1.2} sx={{ mb: 1.5 }}>
+              <TextField
+                fullWidth
+                id="name"
+                label="Nome Completo"
+                type="text"
+                size="small"
+                name="name"
+                value={formData.name}
+                onChange={handleChange}
+                required
+                placeholder="Seu nome completo"
+                autoComplete="name"
+                variant="outlined"
+                sx={{
+                  '& .MuiInputBase-root': {
+                    height: 40,
+                  },
+                }}
+              />
 
-          <div className="form-group">
-            <label htmlFor="password">Senha</label>
-            <input
-              type="password"
-              id="password"
-              name="password"
-              value={formData.password}
-              onChange={handleChange}
-              required
-              placeholder="••••••••"
-              autoComplete="new-password"
-            />
-            <small className="help-text">
-              Mínimo 8 caracteres, incluindo maiúsculas, minúsculas, números e caracteres especiais
-            </small>
-          </div>
+              <TextField
+                fullWidth
+                id="email"
+                label="E-mail"
+                type="email"
+                size="small"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                required
+                placeholder="seu@email.com"
+                autoComplete="email"
+                variant="outlined"
+                sx={{
+                  '& .MuiInputBase-root': {
+                    height: 40,
+                  },
+                }}
+              />
 
-          <div className="form-group">
-            <label htmlFor="confirmPassword">Confirmar Senha</label>
-            <input
-              type="password"
-              id="confirmPassword"
-              name="confirmPassword"
-              value={formData.confirmPassword}
-              onChange={handleChange}
-              required
-              placeholder="••••••••"
-              autoComplete="new-password"
-            />
-          </div>
+              <TextField
+                fullWidth
+                id="password"
+                label="Senha"
+                type="password"
+                size="small"
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                required
+                placeholder="••••••••"
+                autoComplete="new-password"
+                variant="outlined"
+                helperText="Mínimo 8 caracteres, incluindo maiúsculas, minúsculas, números e caracteres especiais"
+                sx={{
+                  '& .MuiInputBase-root': {
+                    height: 40,
+                  },
+                  '& .MuiFormHelperText-root': {
+                    fontSize: '0.75rem',
+                  },
+                }}
+              />
 
-          {error && <div className="error-message">{error}</div>}
+              <TextField
+                fullWidth
+                id="confirmPassword"
+                label="Confirmar Senha"
+                type="password"
+                size="small"
+                name="confirmPassword"
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                required
+                placeholder="••••••••"
+                autoComplete="new-password"
+                variant="outlined"
+                sx={{
+                  '& .MuiInputBase-root': {
+                    height: 40,
+                  },
+                }}
+              />
 
-          <button 
-            type="submit" 
-            className="btn-primary"
-            disabled={loading}
-          >
-            {loading ? 'Criando conta...' : 'Criar Conta'}
-          </button>
-        </form>
+              {error && (
+                <Alert severity="error" onClose={() => setError('')} sx={{ py: 0.8 }}>
+                  {error}
+                </Alert>
+              )}
 
-        <div className="auth-links">
-          <span>Já tem uma conta?</span>
-          <button 
-            type="button"
-            className="link-button"
-            onClick={onSwitchToLogin}
-          >
-            Fazer login
-          </button>
-        </div>
-      </div>
-    </div>
+              <Button
+                type="submit"
+                fullWidth
+                variant="contained"
+                size="small"
+                disabled={loading}
+                sx={{
+                  mt: 0.5,
+                  textTransform: 'none',
+                  fontSize: '0.95rem',
+                  fontWeight: 600,
+                  py: 0.8,
+                }}
+              >
+                {loading ? (
+                  <CircularProgress size={18} sx={{ mr: 1 }} />
+                ) : null}
+                {loading ? 'Criando conta...' : 'Criar Conta'}
+              </Button>
+            </Stack>
+          </form>
+
+          <Stack direction="row" spacing={0.8} sx={{ justifyContent: 'center', alignItems: 'center', gap: 0.8 }}>
+            <Typography variant="caption">Já tem uma conta?</Typography>
+            <Link
+              component="button"
+              type="button"
+              variant="caption"
+              onClick={onSwitchToLogin}
+              sx={{ cursor: 'pointer', fontSize: '0.85rem' }}
+            >
+              Fazer login
+            </Link>
+          </Stack>
+        </Card>
+      </Container>
+    </Box>
   );
 };
 

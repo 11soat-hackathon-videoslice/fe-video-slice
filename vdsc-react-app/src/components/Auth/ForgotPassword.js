@@ -1,8 +1,21 @@
 import React, { useState } from 'react';
 import { resetPassword, confirmResetPassword } from 'aws-amplify/auth';
-import './Auth.css';
+import {
+  Container,
+  Box,
+  Card,
+  TextField,
+  Button,
+  Typography,
+  Alert,
+  Stack,
+  Link,
+  CircularProgress,
+} from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 
 const ForgotPassword = ({ onSwitchToLogin }) => {
+  const theme = useTheme();
   const [step, setStep] = useState('request'); // 'request' or 'reset'
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
@@ -95,131 +108,282 @@ const ForgotPassword = ({ onSwitchToLogin }) => {
 
   if (step === 'reset') {
     return (
-      <div className="auth-container">
-        <div className="auth-card">
-          <div className="auth-logo">
-            <img src="/logo.png" alt="Video Slice" />
-          </div>
-          <h2>Redefinir Senha</h2>
-          <p className="info-text">
-            Digite o código enviado para <strong>{email}</strong> e sua nova senha
-          </p>
-          <form onSubmit={handleConfirmReset} className="auth-form">
-            <div className="form-group">
-              <label htmlFor="code">Código de Verificação</label>
-              <input
-                type="text"
-                id="code"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                required
-                placeholder="123456"
-                maxLength="6"
+      <Box
+        sx={{
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+          py: 2,
+        }}
+      >
+        <Container maxWidth="sm">
+        <Card
+          elevation={3}
+          sx={{
+            p: 3,
+            borderRadius: 2,
+          }}
+        >
+            <Box sx={{ textAlign: 'center', mb: 3 }}>
+              <Box
+                component="img"
+                src="/logo.png"
+                alt="Video Slice"
+                sx={{
+                  width: 120,
+                  height: 120,
+                  objectFit: 'contain',
+                  mb: 1.5,
+                }}
               />
-            </div>
+              <Typography
+                variant="h5"
+                component="h2"
+                sx={{
+                  fontWeight: 700,
+                  color: theme.palette.text.primary,
+                  mb: 1.5,
+                }}
+              >
+                Redefinir Senha
+              </Typography>
+              <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                Digite o código enviado para <strong>{email}</strong> e sua nova senha
+              </Typography>
+            </Box>
 
-            <div className="form-group">
-              <label htmlFor="newPassword">Nova Senha</label>
-              <input
-                type="password"
-                id="newPassword"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                required
-                placeholder="••••••••"
-                autoComplete="new-password"
-              />
-              <small className="help-text">
-                Mínimo 8 caracteres, incluindo maiúsculas, minúsculas, números e caracteres especiais
-              </small>
-            </div>
+            <form onSubmit={handleConfirmReset}>
+              <Stack spacing={1.2} sx={{ mb: 1.5 }}>
+                <TextField
+                  fullWidth
+                  id="code"
+                  label="Código de Verificação"
+                  type="text"
+                  size="small"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  required
+                  placeholder="123456"
+                  inputProps={{ maxLength: 6 }}
+                  variant="outlined"
+                  sx={{
+                    '& .MuiInputBase-root': {
+                      height: 40,
+                    },
+                  }}
+                />
 
-            <div className="form-group">
-              <label htmlFor="confirmPassword">Confirmar Nova Senha</label>
-              <input
-                type="password"
-                id="confirmPassword"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                placeholder="••••••••"
-                autoComplete="new-password"
-              />
-            </div>
+                <TextField
+                  fullWidth
+                  id="newPassword"
+                  label="Nova Senha"
+                  type="password"
+                  size="small"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  required
+                  placeholder="••••••••"
+                  autoComplete="new-password"
+                  variant="outlined"
+                  helperText="Mínimo 8 caracteres, incluindo maiúsculas, minúsculas, números e caracteres especiais"
+                  sx={{
+                    '& .MuiInputBase-root': {
+                      height: 40,
+                    },
+                    '& .MuiFormHelperText-root': {
+                      fontSize: '0.75rem',
+                    },
+                  }}
+                />
 
-            {error && <div className="error-message">{error}</div>}
-            {success && <div className="success-message">{success}</div>}
+                <TextField
+                  fullWidth
+                  id="confirmPassword"
+                  label="Confirmar Nova Senha"
+                  type="password"
+                  size="small"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  placeholder="••••••••"
+                  autoComplete="new-password"
+                  variant="outlined"
+                  sx={{
+                    '& .MuiInputBase-root': {
+                      height: 40,
+                    },
+                  }}
+                />
 
-            <button 
-              type="submit" 
-              className="btn-primary"
-              disabled={loading}
-            >
-              {loading ? 'Redefinindo...' : 'Redefinir Senha'}
-            </button>
-          </form>
+                {error && (
+                  <Alert severity="error" onClose={() => setError('')} sx={{ py: 0.8 }}>
+                    {error}
+                  </Alert>
+                )}
 
-          <div className="auth-links">
-            <button 
-              type="button"
-              className="link-button"
-              onClick={onSwitchToLogin}
-            >
-              Voltar para login
-            </button>
-          </div>
-        </div>
-      </div>
+                {success && (
+                  <Alert severity="success" onClose={() => setSuccess('')} sx={{ py: 0.8 }}>
+                    {success}
+                  </Alert>
+                )}
+
+                <Button
+                  type="submit"
+                  fullWidth
+                  variant="contained"
+                  size="small"
+                  disabled={loading}
+                  sx={{
+                    mt: 0.5,
+                    textTransform: 'none',
+                    fontSize: '0.95rem',
+                    fontWeight: 600,
+                    py: 0.8,
+                  }}
+                >
+                  {loading ? (
+                    <CircularProgress size={18} sx={{ mr: 1 }} />
+                  ) : null}
+                  {loading ? 'Redefinindo...' : 'Redefinir Senha'}
+                </Button>
+              </Stack>
+            </form>
+
+            <Box sx={{ textAlign: 'center' }}>
+              <Link
+                component="button"
+                type="button"
+                variant="caption"
+                onClick={onSwitchToLogin}
+                sx={{ cursor: 'pointer', fontSize: '0.85rem' }}
+              >
+                Voltar para login
+              </Link>
+            </Box>
+          </Card>
+        </Container>
+      </Box>
     );
   }
 
   return (
-    <div className="auth-container">
-      <div className="auth-card">
-        <div className="auth-logo">
-          <img src="/logo.png" alt="Video Slice" />
-        </div>
-        <h2>Esqueci minha Senha</h2>
-        <p className="info-text">
-          Digite seu e-mail para receber um código de verificação
-        </p>
-        <form onSubmit={handleRequestReset} className="auth-form">
-          <div className="form-group">
-            <label htmlFor="email">E-mail</label>
-            <input
-              type="email"
-              id="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              placeholder="seu@email.com"
-              autoComplete="email"
+    <Box
+      sx={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+        py: 2,
+      }}
+    >
+      <Container maxWidth="sm">
+        <Card
+          elevation={3}
+          sx={{
+            p: 3,
+            borderRadius: 2,
+          }}
+        >
+          <Box sx={{ textAlign: 'center', mb: 2 }}>
+            <Box
+              component="img"
+              src="/logo.png"
+              alt="Video Slice"
+              sx={{
+                width: 120,
+                height: 120,
+                objectFit: 'contain',
+                mb: 1.5,
+              }}
             />
-          </div>
+            <Typography
+              variant="h5"
+              component="h2"
+              sx={{
+                fontWeight: 700,
+                color: theme.palette.text.primary,
+                mb: 1.5,
+              }}
+            >
+              Esqueci minha Senha
+            </Typography>
+            <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+              Digite seu e-mail para receber um código de verificação
+            </Typography>
+          </Box>
 
-          {error && <div className="error-message">{error}</div>}
-          {success && <div className="success-message">{success}</div>}
+          <form onSubmit={handleRequestReset}>
+            <Stack spacing={1.2} sx={{ mb: 1.5 }}>
+              <TextField
+                fullWidth
+                id="email"
+                label="E-mail"
+                type="email"
+                size="small"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                placeholder="seu@email.com"
+                autoComplete="email"
+                variant="outlined"
+                sx={{
+                  '& .MuiInputBase-root': {
+                    height: 40,
+                  },
+                }}
+              />
 
-          <button 
-            type="submit" 
-            className="btn-primary"
-            disabled={loading}
-          >
-            {loading ? 'Enviando...' : 'Enviar Código'}
-          </button>
-        </form>
+              {error && (
+                <Alert severity="error" onClose={() => setError('')} sx={{ py: 0.8 }}>
+                  {error}
+                </Alert>
+              )}
 
-        <div className="auth-links">
-          <button 
-            type="button"
-            className="link-button"
-            onClick={onSwitchToLogin}
-          >
-            Voltar para login
-          </button>
-        </div>
-      </div>
-    </div>
+              {success && (
+                <Alert severity="success" onClose={() => setSuccess('')} sx={{ py: 0.8 }}>
+                  {success}
+                </Alert>
+              )}
+
+              <Button
+                type="submit"
+                fullWidth
+                variant="contained"
+                size="small"
+                disabled={loading}
+                sx={{
+                  mt: 0.5,
+                  textTransform: 'none',
+                  fontSize: '0.95rem',
+                  fontWeight: 600,
+                  py: 0.8,
+                }}
+              >
+                {loading ? (
+                  <CircularProgress size={18} sx={{ mr: 1 }} />
+                ) : null}
+                {loading ? 'Enviando...' : 'Enviar Código'}
+              </Button>
+            </Stack>
+          </form>
+
+          <Box sx={{ textAlign: 'center' }}>
+            <Link
+              component="button"
+              type="button"
+              variant="caption"
+              onClick={onSwitchToLogin}
+              sx={{ cursor: 'pointer', fontSize: '0.85rem' }}
+            >
+              Voltar para login
+            </Link>
+          </Box>
+        </Card>
+      </Container>
+    </Box>
   );
 };
 

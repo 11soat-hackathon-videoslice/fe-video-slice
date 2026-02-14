@@ -1,8 +1,21 @@
 import React, { useState } from 'react';
 import { signIn } from 'aws-amplify/auth';
-import './Auth.css';
+import {
+  Container,
+  Box,
+  Card,
+  TextField,
+  Button,
+  Typography,
+  Alert,
+  Stack,
+  Link,
+  CircularProgress,
+} from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 
 const Login = ({ onSuccess, onSwitchToRegister, onSwitchToForgotPassword }) => {
+  const theme = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -28,69 +41,153 @@ const Login = ({ onSuccess, onSwitchToRegister, onSwitchToForgotPassword }) => {
   };
 
   return (
-    <div className="auth-container">
-      <div className="auth-card">
-        <div className="auth-logo">
-          <img src="logo.png" alt="Video Slice" />
-        </div>
-        <h2>Login</h2>
-        <form onSubmit={handleSubmit} className="auth-form">
-          <div className="form-group">
-            <label htmlFor="email">E-mail</label>
-            <input
-              type="email"
-              id="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              placeholder="seu@email.com"
-              autoComplete="email"
+    <Box
+      sx={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+        py: 2,
+      }}
+    >
+      <Container maxWidth="sm">
+        <Card
+          elevation={3}
+          sx={{
+            p: 3,
+            borderRadius: 2,
+          }}
+        >
+          <Box sx={{ textAlign: 'center', mb: 2 }}>
+            <Box
+              component="img"
+              src="logo.png"
+              alt="Video Slice"
+              sx={{
+                width: 120,
+                height: 120,
+                objectFit: 'contain',
+                mb: 1.5,
+              }}
             />
-          </div>
+            <Typography
+              variant="h5"
+              component="h2"
+              sx={{
+                fontWeight: 700,
+                color: theme.palette.text.primary,
+                mb: 2,
+              }}
+            >
+              Login
+            </Typography>
+          </Box>
 
-          <div className="form-group">
-            <label htmlFor="password">Senha</label>
-            <input
-              type="password"
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              placeholder="••••••••"
-              autoComplete="current-password"
-            />
-          </div>
+          <form onSubmit={handleSubmit}>
+            <Stack spacing={1.2} sx={{ mb: 1.5 }}>
+              <TextField
+                fullWidth
+                id="email"
+                label="E-mail"
+                type="email"
+                size="small"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                placeholder="seu@email.com"
+                autoComplete="email"
+                variant="outlined"
+                sx={{
+                  '& .MuiInputBase-root': {
+                    height: 40,
+                  },
+                }}
+              />
 
-          {error && <div className="error-message">{error}</div>}
+              <TextField
+                fullWidth
+                id="password"
+                label="Senha"
+                type="password"
+                size="small"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                placeholder="••••••••"
+                autoComplete="current-password"
+                variant="outlined"
+                sx={{
+                  '& .MuiInputBase-root': {
+                    height: 40,
+                  },
+                }}
+              />
 
-          <button 
-            type="submit" 
-            className="btn-primary"
-            disabled={loading}
+              {error && (
+                <Alert severity="error" onClose={() => setError('')} sx={{ py: 0.8 }}>
+                  {error}
+                </Alert>
+              )}
+
+              <Button
+                type="submit"
+                fullWidth
+                variant="contained"
+                size="small"
+                disabled={loading}
+                sx={{
+                  mt: 0.5,
+                  textTransform: 'none',
+                  fontSize: '0.95rem',
+                  fontWeight: 600,
+                  py: 0.8,
+                }}
+              >
+                {loading ? (
+                  <CircularProgress size={18} sx={{ mr: 1 }} />
+                ) : null}
+                {loading ? 'Entrando...' : 'Entrar'}
+              </Button>
+            </Stack>
+          </form>
+
+          <Stack
+            direction="row"
+            spacing={0.8}
+            sx={{
+              justifyContent: 'center',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: 0.8,
+              mt: 1.5,
+            }}
           >
-            {loading ? 'Entrando...' : 'Entrar'}
-          </button>
-        </form>
-
-        <div className="auth-links">
-          <button 
-            type="button"
-            className="link-button"
-            onClick={onSwitchToForgotPassword}
-          >
-            Esqueci minha senha
-          </button>
-          <span className="separator">|</span>
-          <button 
-            type="button"
-            className="link-button"
-            onClick={onSwitchToRegister}
-          >
-            Criar conta
-          </button>
-        </div>
-      </div>
-    </div>
+            <Link
+              component="button"
+              type="button"
+              variant="caption"
+              onClick={onSwitchToForgotPassword}
+              sx={{ cursor: 'pointer', fontSize: '0.85rem' }}
+            >
+              Esqueci minha senha
+            </Link>
+            <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+              |
+            </Typography>
+            <Link
+              component="button"
+              type="button"
+              variant="caption"
+              onClick={onSwitchToRegister}
+              sx={{ cursor: 'pointer', fontSize: '0.85rem' }}
+            >
+              Criar conta
+            </Link>
+          </Stack>
+        </Card>
+      </Container>
+    </Box>
   );
 };
 

@@ -208,10 +208,10 @@ describe('API Service', () => {
         data: new Blob(['file content'])
       });
 
-      const result = await videoAPI.downloadVideo('video123');
+      const result = await videoAPI.downloadVideo('myVideo.zip');
 
       expect(result.success).toBe(true);
-      expect(result.fileName).toBe('video123.zip');
+      expect(result.fileName).toBe('myVideo.zip');
     });
 
     it('deve lançar erro quando URL não está disponível', async () => {
@@ -219,7 +219,7 @@ describe('API Service', () => {
         data: {}
       });
 
-      await expect(videoAPI.downloadVideo('video123')).rejects.toThrow('URL de download não obtida');
+      await expect(videoAPI.downloadVideo('myVideo.zip')).rejects.toThrow('URL de download não obtida');
     });
   });
 

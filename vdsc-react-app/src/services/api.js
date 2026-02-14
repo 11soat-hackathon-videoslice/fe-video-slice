@@ -106,14 +106,17 @@ const mapVideoFromAPI = (apiVideo) => {
     timeUnit: video.unitTime || video.timeUnit,
     startTime: video.startTime,
     endTime: video.endTime,
-    interval: Array.isArray(video.timeInterval) 
-      ? video.timeInterval.join(', ') 
-      : video.timeInterval,
-    quality: video.quality,
-    maxRetries: video.maxRetry || video.maxRetries,
+    interval: Array.isArray(video.intervalTime) && video.intervalTime.length > 0
+      ? video.intervalTime.join(', ')
+      : (video.intervalTime && !Array.isArray(video.intervalTime) ? video.intervalTime : '-'),
+    resize: video.quality || video.resize || '',
+    maxRetries: (typeof video.maxRetries === 'number' && video.maxRetries >= 0) ? video.maxRetries : 0,
     retries: video.retries || 0,
     logs: video.logs || [],
-    extensionFile: video.extensionFile || video.extension
+    fileExtension: video.fileExtension || '',
+    qualityOutputLevel: (typeof video.qualityOutputLevel === 'number' && video.qualityOutputLevel > 0)
+      ? video.qualityOutputLevel
+      : 75
   };
 };
 
@@ -168,23 +171,57 @@ export const videoAPI = {
         throw new Error(`Erro na API: ${response.status}`);
       }
       
+      // Parse response data if it's a string
+      let parsedData = response.data;
+      if (typeof response.data === 'string') {
+        try {
+          parsedData = JSON.parse(response.data);
+        } catch (e) {
+          console.error('Error parsing response data:', e);
+          throw new Error('Resposta da API não é um JSON válido');
+        }
+      }
+
       // Parse DynamoDB response format
       let items = [];
       
-      if (response.data) {
+      if (parsedData) {
         // Check if response has Items array (DynamoDB format)
-        if (response.data.Items && Array.isArray(response.data.Items)) {
-          items = response.data.Items;
+        if (parsedData.Items && Array.isArray(parsedData.Items)) {
+          items = parsedData.Items;
           console.log('Found Items in DynamoDB format:', items.length);
         }
         // Check if response has items array (standard format)
-        else if (response.data.items && Array.isArray(response.data.items)) {
-          items = response.data.items;
+        else if (parsedData.items && Array.isArray(parsedData.items)) {
+          items = parsedData.items;
           console.log('Found items in standard format:', items.length);
         }
+        // Check if response has body (Lambda proxy format)
+        else if (parsedData.body) {
+          try {
+            const parsedBody = JSON.parse(parsedData.body);
+            if (Array.isArray(parsedBody)) {
+              items = parsedBody;
+              console.log('Found body array:', items.length);
+            } else if (parsedBody.items && Array.isArray(parsedBody.items)) {
+              items = parsedBody.items;
+              console.log('Found body items array:', items.length);
+            } else if (parsedBody.data && Array.isArray(parsedBody.data)) {
+              items = parsedBody.data;
+              console.log('Found body data array:', items.length);
+            }
+          } catch (e) {
+            console.error('Error parsing response body:', e);
+          }
+        }
+        // Check if response has data array
+        else if (parsedData.data && Array.isArray(parsedData.data)) {
+          items = parsedData.data;
+          console.log('Found data array:', items.length);
+        }
         // Check if response is directly an array
-        else if (Array.isArray(response.data)) {
-          items = response.data;
+        else if (Array.isArray(parsedData)) {
+          items = parsedData;
           console.log('Response is direct array:', items.length);
         }
       }
@@ -320,10 +357,10 @@ export const videoAPI = {
     }
   },
 
-  // Download video using videoId
-  downloadVideo: async (videoId) => {
+  // Download video using fileName
+  downloadVideo: async (fileName) => {
     try {
-      const fileName = `${videoId}.zip`;
+      // fileName should be in format fileName.zip
       const url = `${apiConfig.apiUrl}${apiConfig.apiDownloadUrl}/${encodeURIComponent(fileName)}`;
       console.log('Getting download URL from:', url);
 

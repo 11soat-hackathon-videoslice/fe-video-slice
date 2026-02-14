@@ -263,7 +263,7 @@ describe('Dashboard Component', () => {
 
       fireEvent.click(screen.getByTestId('download-1'));
       await waitFor(() => {
-        expect(videoAPI.downloadVideo).toHaveBeenCalledWith(1);
+        expect(videoAPI.downloadVideo).toHaveBeenCalledWith('test.zip');
       });
     });
 

@@ -1,5 +1,27 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { notificationService } from '../../services/notificationService';
+import {
+  IconButton,
+  Badge,
+  Menu,
+  MenuItem,
+  Typography,
+  Box,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
+  Divider,
+  Button,
+  CircularProgress
+} from '@mui/material';
+import {
+  Notifications as NotificationsIcon,
+  NotificationsNone as NotificationsNoneIcon,
+  CheckCircle as CheckCircleIcon,
+  Error as ErrorIcon,
+  Info as InfoIcon,
+  Warning as WarningIcon
+} from '@mui/icons-material';
 import './NotificationIcon.css';
 
 const NotificationIcon = ({ onNewNotification, onNotificationRead }) => {
@@ -7,6 +29,7 @@ const NotificationIcon = ({ onNewNotification, onNotificationRead }) => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [showDropdown, setShowDropdown] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [anchorEl, setAnchorEl] = useState(null);
   const dropdownRef = useRef(null);
   const subscriptionRef = useRef(null);
   const notificationSoundRef = useRef(null);
@@ -192,8 +215,14 @@ const NotificationIcon = ({ onNewNotification, onNotificationRead }) => {
     }
   };
 
-  const handleToggleDropdown = () => {
+  const handleToggleDropdown = (event) => {
+    setAnchorEl(event.currentTarget);
     setShowDropdown(!showDropdown);
+  };
+
+  const handleCloseDropdown = () => {
+    setAnchorEl(null);
+    setShowDropdown(false);
   };
 
   const formatTimestamp = (timestamp) => {
@@ -221,96 +250,88 @@ const NotificationIcon = ({ onNewNotification, onNotificationRead }) => {
   };
 
   return (
-    <div className="notification-container" ref={dropdownRef}>
-      <button
-        className="notification-icon-btn"
+    <Box>
+      <IconButton
         onClick={handleToggleDropdown}
         aria-label="Notificações"
+        sx={{ color: 'white' }}
       >
-        <svg
-          width="24"
-          height="24"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-        </svg>
-        {unreadCount > 0 && (
-          <span className="notification-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
-        )}
-      </button>
+        <Badge badgeContent={unreadCount > 99 ? '99+' : unreadCount} color="error">
+          <NotificationsIcon />
+        </Badge>
+      </IconButton>
 
-      {showDropdown && (
-        <div className="notification-dropdown">
-          <div className="notification-header">
-            <h3>Notificações</h3>
-            <div className="notification-header-buttons">
-              {notifications.length > 0 && (
-                <>
-                  <button
-                    className="btn-mark-all-read"
-                    onClick={handleMarkAllAsRead}
-                    title="Marcar todas como lidas"
-                  >
-                    ✓ Lido
-                  </button>
-                  <button
-                    className="btn-refresh-notifications"
-                    onClick={loadNotifications}
-                    disabled={loading}
-                  >
-                    🔄
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-
-          <div className="notification-list">
-            {loading ? (
-              <div className="notification-loading">
-                <div className="spinner-small"></div>
-                <p>Carregando...</p>
-              </div>
-            ) : notifications.length === 0 ? (
-              <div className="notification-empty">
-                <p>Nenhuma notificação</p>
-              </div>
-            ) : (
-              notifications.map((notification) => (
-                <div
-                  key={notification.id}
-                  className={`notification-item ${notification.isRead ? 'read' : 'unread'}`}
+      <Menu
+        anchorEl={anchorEl}
+        open={showDropdown}
+        onClose={handleCloseDropdown}
+        PaperProps={{
+          sx: { width: 350, maxHeight: 400 }
+        }}
+      >
+        <Box sx={{ p: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="h6" sx={{ fontSize: '1.125rem' }}>Notificações</Typography>
+          <Box>
+            {notifications.length > 0 && (
+              <>
+                <Button
+                  onClick={handleMarkAllAsRead}
+                  size="small"
+                  startIcon={<CheckCircleIcon />}
+                  sx={{ mr: 0.5, fontSize: '0.75rem', py: 0.25, px: 1 }}
                 >
-                  <div className="notification-content" onClick={() => handleMarkAsRead(notification)}>
-                    <p className="notification-message">{notification.message}</p>
-                    {notification.fileName && (
-                      <p className="notification-filename">📁 {notification.fileName}</p>
-                    )}
-                    <span className="notification-time">
-                      {formatTimestamp(notification.timestamp)}
-                    </span>
-                  </div>
-                  <button
-                    className="notification-close-btn"
-                    onClick={() => handleMarkAsRead(notification)}
-                    title="Marcar como lido"
-                    aria-label="Fechar notificação"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))
+                  Lido
+                </Button>
+                <IconButton
+                  onClick={loadNotifications}
+                  disabled={loading}
+                  size="small"
+                  sx={{ p: 0.5 }}
+                >
+                  {loading ? <CircularProgress size={16} /> : <NotificationsNoneIcon fontSize="small" />}
+                </IconButton>
+              </>
             )}
-          </div>
-        </div>
-      )}
-    </div>
+          </Box>
+        </Box>
+
+        <Divider />
+
+        {loading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 3 }}>
+            <CircularProgress size={20} />
+            <Typography variant="body2" sx={{ ml: 1, fontSize: '0.875rem' }}>Carregando...</Typography>
+          </Box>
+        ) : notifications.length === 0 ? (
+          <Box sx={{ textAlign: 'center', py: 3 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem' }}>
+              Nenhuma notificação
+            </Typography>
+          </Box>
+        ) : (
+          notifications.map((notification) => (
+            <MenuItem
+              key={notification.id}
+              onClick={() => handleMarkAsRead(notification)}
+              sx={{ py: 0.75, px: 1.5 }}
+            >
+              <ListItemIcon sx={{ minWidth: 32 }}>
+                {notification.type === 'success' && <CheckCircleIcon color="success" fontSize="small" />}
+                {notification.type === 'error' && <ErrorIcon color="error" fontSize="small" />}
+                {notification.type === 'info' && <InfoIcon color="info" fontSize="small" />}
+                {notification.type === 'warning' && <WarningIcon color="warning" fontSize="small" />}
+              </ListItemIcon>
+              <ListItemText
+                primary={notification.message}
+                secondary={formatTimestamp(notification.timestamp)}
+                primaryTypographyProps={{ variant: 'body2', fontSize: '0.875rem' }}
+                secondaryTypographyProps={{ variant: 'caption', fontSize: '0.7rem' }}
+              />
+            </MenuItem>
+          ))
+        )}
+      </Menu>
+    </Box>
   );
 };
 

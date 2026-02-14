@@ -1,4 +1,20 @@
 import React from 'react';
+import {
+  Box,
+  Typography,
+  TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Button,
+  Grid,
+  Paper
+} from '@mui/material';
+import {
+  Search as SearchIcon,
+  Clear as ClearIcon
+} from '@mui/icons-material';
 import './Dashboard.css';
 
 const VideoFilters = ({ filters, onFilterChange, onClearFilters }) => {
@@ -12,87 +28,103 @@ const VideoFilters = ({ filters, onFilterChange, onClearFilters }) => {
            filters.dateFrom || 
            filters.dateTo ||
            filters.id ||
-           filters.extension;
+           filters.fileExtension;
   };
 
   return (
-    <div className="filters-container">
-      <div className="filters-title">
-        <h3>🔍 Filtros de Pesquisa</h3>
+    <Paper sx={{ p: 2, mb: 2, bgcolor: 'grey.50' }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+        <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1, fontSize: '1.125rem' }}>
+          <SearchIcon />
+          Filtros de Pesquisa
+        </Typography>
         {hasActiveFilters() && (
-          <button 
-            className="btn-clear-filters"
+          <Button
+            variant="outlined"
+            startIcon={<ClearIcon />}
             onClick={onClearFilters}
+            size="small"
             title="Limpar todos os filtros"
           >
-            ✕ Limpar Filtros
-          </button>
+            Limpar Filtros
+          </Button>
         )}
-      </div>
-      
-      <div className="filters-grid">
+      </Box>
+
+      <Grid container spacing={2} sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
         {/* Busca por ID */}
-        <div className="filter-item">
-          <label htmlFor="filter-id">ID</label>
-          <input
+        <Box sx={{ flex: '1 1 250px', minWidth: '250px' }}>
+          <TextField
             id="filter-id"
+            label="ID"
             type="number"
             placeholder="Buscar por ID..."
             value={filters.id}
             onChange={(e) => handleInputChange('id', e.target.value)}
-            className="filter-input"
+            fullWidth
+            variant="outlined"
+            size="small"
           />
-        </div>
+        </Box>
 
         {/* Busca por nome do arquivo */}
-        <div className="filter-item">
-          <label htmlFor="filter-search">Nome do Arquivo</label>
-          <input
+        <Box sx={{ flex: '1 1 250px', minWidth: '250px' }}>
+          <TextField
             id="filter-search"
+            label="Nome do Arquivo"
             type="text"
             placeholder="Buscar por nome..."
             value={filters.search}
             onChange={(e) => handleInputChange('search', e.target.value)}
-            className="filter-input"
+            fullWidth
+            variant="outlined"
+            size="small"
           />
-        </div>
+        </Box>
 
         {/* Filtro de Extensão */}
-        <div className="filter-item">
-          <label htmlFor="filter-extension">Extensão</label>
-          <select
-            id="filter-extension"
-            value={filters.extension}
-            onChange={(e) => handleInputChange('extension', e.target.value)}
-            className="filter-select"
-          >
-            <option value="">Todas as extensões</option>
-            <option value="mp4">MP4</option>
-            <option value="avi">AVI</option>
-            <option value="mov">MOV</option>
-            <option value="mkv">MKV</option>
-            <option value="webm">WEBM</option>
-          </select>
-        </div>
+        <Box sx={{ flex: '1 1 250px', minWidth: '250px' }}>
+          <FormControl fullWidth variant="outlined" size="small">
+            <InputLabel id="filter-extension-label">Extensão</InputLabel>
+            <Select
+              id="filter-extension"
+              labelId="filter-extension-label"
+              value={filters.fileExtension}
+              onChange={(e) => handleInputChange('fileExtension', e.target.value)}
+              label="Extensão"
+            >
+              <MenuItem value=""><em>Todas as extensões</em></MenuItem>
+              <MenuItem value="mp4">MP4</MenuItem>
+              <MenuItem value="avi">AVI</MenuItem>
+              <MenuItem value="mov">MOV</MenuItem>
+              <MenuItem value="mkv">MKV</MenuItem>
+              <MenuItem value="webm">WEBM</MenuItem>
+            </Select>
+          </FormControl>
+        </Box>
 
         {/* Filtro de Status */}
-        <div className="filter-item">
-          <label htmlFor="filter-status">Status</label>
-          <select
-            id="filter-status"
-            value={filters.status}
-            onChange={(e) => handleInputChange('status', e.target.value)}
-            className="filter-select"
-          >
-            <option value="">Todos os status</option>
-            <option value="pending">Pendente</option>
-            <option value="processing">Processando</option>
-            <option value="completed">Concluído</option>
-            <option value="failed">Falhou</option>
-          </select>
-        </div>
-      </div>
-    </div>
+        <Box sx={{ flex: '1 1 250px', minWidth: '250px' }}>
+          <FormControl fullWidth variant="outlined" size="small">
+            <InputLabel id="filter-status-label">Status</InputLabel>
+            <Select
+              id="filter-status"
+              labelId="filter-status-label"
+              value={filters.status}
+              onChange={(e) => handleInputChange('status', e.target.value)}
+              label="Status"
+            >
+              <MenuItem value=""><em>Todos os status</em></MenuItem>
+              <MenuItem value="UPLOADED">Carregado</MenuItem>
+              <MenuItem value="PROCESSING">Processando</MenuItem>
+              <MenuItem value="FINISHED">Concluído</MenuItem>
+              <MenuItem value="FAILED">Falhou</MenuItem>
+              <MenuItem value="RETRYING">Tentando Novamente</MenuItem>
+            </Select>
+          </FormControl>
+        </Box>
+      </Grid>
+    </Paper>
   );
 };
 

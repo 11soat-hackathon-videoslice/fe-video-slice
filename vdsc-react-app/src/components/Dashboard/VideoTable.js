@@ -1,5 +1,28 @@
 import React, { useState, useMemo } from 'react';
 import VideoFilters from './VideoFilters';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Chip,
+  IconButton,
+  Collapse,
+  Box,
+  Typography,
+  CircularProgress,
+  TableSortLabel,
+  Button
+} from '@mui/material';
+import {
+  Download as DownloadIcon,
+  Description as DescriptionIcon,
+  KeyboardArrowDown as KeyboardArrowDownIcon,
+  KeyboardArrowUp as KeyboardArrowUpIcon
+} from '@mui/icons-material';
 import './Dashboard.css';
 
 const VideoTable = ({ videos, loading, onDownload, onViewLogs }) => {
@@ -8,7 +31,7 @@ const VideoTable = ({ videos, loading, onDownload, onViewLogs }) => {
   const [filters, setFilters] = useState({
     id: '',
     search: '',
-    extensionFile: '',
+    fileExtension: '',
     status: '',
     dateFrom: '',
     dateTo: ''
@@ -48,22 +71,47 @@ const VideoTable = ({ videos, loading, onDownload, onViewLogs }) => {
     return unitMap[unit] || unit;
   };
 
+  // Helper function to normalize video data from different formats
+  const normalizeVideo = (video) => {
+    return {
+      id: video.id || video.videoId,
+      fileName: video.fileName,
+      fileExtension: video.fileExtension,
+      uploadDate: video.uploadDate || video.created,
+      fileSize: video.fileSize || null,
+      duration: video.duration || video.totalTime,
+      status: video.status,
+      timeUnit: video.timeUnit || video.unitTime,
+      startTime: video.startTime,
+      endTime: video.endTime,
+      interval: Array.isArray(video.intervalTime) ? video.intervalTime.join(', ') : video.intervalTime,
+      quality: video.resize,
+      maxRetries: video.maxRetries,
+      retries: video.retries || 0,
+      logs: video.logs || []
+    };
+  };
+
   const getStatusBadge = (status) => {
     const statusMap = {
-      'UPLOADED': { label: 'Carregado', className: 'status-uploaded' },
-      'PROCESSING': { label: 'Processando', className: 'status-processing' },
-      'FINISHED': { label: 'Concluído', className: 'status-completed' },
-      'FAILED': { label: 'Falhou', className: 'status-failed' }
+      'UPLOADED': { label: 'Carregado', color: 'default' },
+      'PROCESSING': { label: 'Processando', color: 'warning' },
+      'FINISHED': { label: 'Concluído', color: 'success' },
+      'FAILED': { label: 'Falhou', color: 'error' },
+      'RETRYING': { label: 'Tentando Novamente', color: 'info' }
     };
-    const statusInfo = statusMap[status] || { label: status, className: 'status-unknown' };
-    return <span className={`status-badge ${statusInfo.className}`}>{statusInfo.label}</span>;
+    const statusInfo = statusMap[status] || { label: status, color: 'default' };
+    return <Chip label={statusInfo.label} color={statusInfo.color} size="small" />;
   };
+
+  // Normalize video data to handle different formats
+  const normalizedVideos = videos.map(normalizeVideo);
 
   // Função para filtrar vídeos
   const filteredVideos = useMemo(() => {
-    if (!videos || videos.length === 0) return [];
+    if (!normalizedVideos || normalizedVideos.length === 0) return [];
 
-    return videos.filter(video => {
+    return normalizedVideos.filter(video => {
       // Filtro de busca por ID
       if (filters.id && video.id?.toString() !== filters.id.toString()) {
         return false;
@@ -75,7 +123,7 @@ const VideoTable = ({ videos, loading, onDownload, onViewLogs }) => {
       }
 
       // Filtro de extensão
-      if (filters.extensionFile && video.extensionFile?.toLowerCase() !== filters.extensionFile.toLowerCase()) {
+      if (filters.fileExtension && video.fileExtension?.toLowerCase() !== filters.fileExtension.toLowerCase()) {
         return false;
       }
 
@@ -106,7 +154,7 @@ const VideoTable = ({ videos, loading, onDownload, onViewLogs }) => {
 
       return true;
     });
-  }, [videos, filters]);
+  }, [normalizedVideos, filters]);
 
   const sortedVideos = useMemo(() => {
     if (!filteredVideos || filteredVideos.length === 0) return [];
@@ -149,7 +197,7 @@ const VideoTable = ({ videos, loading, onDownload, onViewLogs }) => {
     setFilters({
       id: '',
       search: '',
-      extensionFile: '',
+      fileExtension: '',
       status: '',
       dateFrom: '',
       dateTo: ''
@@ -185,244 +233,236 @@ const VideoTable = ({ videos, loading, onDownload, onViewLogs }) => {
 
   if (loading) {
     return (
-      <div className="table-container">
-        <VideoFilters 
-          filters={filters}
-          onFilterChange={handleFilterChange}
-          onClearFilters={handleClearFilters}
-        />
-        <div className="table-wrapper">
-          <table className="video-table">
-            <thead>
-              <tr>
-                <th colSpan="7" className="section-header">Identificação</th>
-                <th colSpan="2" className="section-header">Ações</th>
-              </tr>
-              <tr>
-                <th>ID</th>
-                <th>Nome do Arquivo</th>
-                <th>Extensão</th>
-                <th>Data de Upload</th>
-                <th>Tamanho</th>
-                <th>Duração</th>
-                <th>Status</th>
-                <th>Download</th>
-                <th>Logs</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td colSpan="9" style={{ textAlign: 'center', padding: '40px' }}>
-                  <div className="loading-spinner">
-                    <div className="spinner"></div>
-                    <p>Carregando vídeos...</p>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
+        <CircularProgress />
+        <Typography variant="body1" sx={{ ml: 2 }}>Carregando vídeos...</Typography>
+      </Box>
     );
   }
 
   if (!videos || videos.length === 0) {
     return (
-      <div className="table-container">
-        <VideoFilters 
-          filters={filters}
-          onFilterChange={handleFilterChange}
-          onClearFilters={handleClearFilters}
-        />
-        <div className="table-wrapper">
-          <table className="video-table">
-            <thead>
-              <tr>
-                <th colSpan="6" className="section-header">Identificação</th>
-                <th colSpan="2" className="section-header">Ações</th>
-              </tr>
-              <tr>
-                <th>ID</th>
-                <th>Nome do Arquivo</th>
-                <th>Extensão</th>
-                <th>Data de Upload</th>
-                <th>Duração</th>
-                <th>Status</th>
-                <th>Download</th>
-                <th>Logs</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td colSpan="8" style={{ textAlign: 'center', padding: '40px' }}>
-                  <div className="empty-state">
-                    <p>Nenhum vídeo encontrado</p>
-                    <small>Clique em "Upload Novo Vídeo" para começar</small>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <Box sx={{ textAlign: 'center', py: 8 }}>
+        <Typography variant="h6" color="text.secondary">
+          Nenhum vídeo encontrado
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Clique em "Upload Novo Vídeo" para começar
+        </Typography>
+      </Box>
     );
   }
 
-  const hasActiveFilters = filters.id || filters.search || filters.extensionFile || filters.status || filters.dateFrom || filters.dateTo;
+
+  const hasActiveFilters = filters.id || filters.search || filters.fileExtension || filters.status || filters.dateFrom || filters.dateTo;
   const resultCount = sortedVideos.length;
   const totalCount = videos.length;
 
   return (
-    <div className="table-container">
-      <VideoFilters 
+    <Box>
+      <VideoFilters
         filters={filters}
         onFilterChange={handleFilterChange}
         onClearFilters={handleClearFilters}
       />
       
       {hasActiveFilters && (
-        <div className="filter-results-info">
-          <span>
-            Mostrando <strong>{resultCount}</strong> de <strong>{totalCount}</strong> vídeo{totalCount !== 1 ? 's' : ''}
-          </span>
-        </div>
+        <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary', fontSize: '0.875rem' }}>
+          Mostrando <strong>{resultCount}</strong> de <strong>{totalCount}</strong> vídeo{totalCount !== 1 ? 's' : ''}
+        </Typography>
       )}
 
-      <div className="table-wrapper">
-        <table className="video-table">
-          <thead>
-            <tr>
-              <th colSpan="6" className="section-header">Identificação</th>
-              <th colSpan="2" className="section-header">Ações</th>
-            </tr>
-            <tr>
-              {/* Identificação */}
-              <th onClick={() => requestSort('id')}>
-                ID {getSortIndicator('id')}
-              </th>
-              <th onClick={() => requestSort('fileName')}>
-                Nome do Arquivo {getSortIndicator('fileName')}
-              </th>
-              <th onClick={() => requestSort('extension')}>
-                Extensão {getSortIndicator('extensionFile')}
-              </th>
-              <th onClick={() => requestSort('uploadDate')}>
-                Data de Upload {getSortIndicator('uploadDate')}
-              </th>
-              <th onClick={() => requestSort('duration')}>
-                Duração {getSortIndicator('duration')}
-              </th>
-              <th onClick={() => requestSort('status')}>
-                Status {getSortIndicator('status')}
-              </th>
-              
-              {/* Ações */}
-              <th>Download</th>
-              <th>Logs</th>
-            </tr>
-          </thead>
-          <tbody>
+      <TableContainer component={Paper} sx={{ boxShadow: 2 }}>
+        <Table size="small">
+          <TableHead>
+            <TableRow sx={{ background: 'linear-gradient(135deg, rgba(90, 61, 154, 0.9) 0%, rgba(76, 81, 191, 0.9) 100%)' }}>
+              <TableCell colSpan={5} sx={{ fontWeight: 'bold', textAlign: 'center', borderBottom: 2, borderColor: '#c5cae9', py: 1, fontSize: '0.875rem', color: 'white' }}>
+                Identificação
+              </TableCell>
+              <TableCell colSpan={2} sx={{ fontWeight: 'bold', textAlign: 'center', borderBottom: 2, borderColor: '#c5cae9', py: 1, fontSize: '0.875rem', color: 'white' }}>
+                Ações
+              </TableCell>
+            </TableRow>
+            <TableRow sx={{ bgcolor: '#f3e5f5' }}>
+              <TableCell sx={{ fontWeight: 'bold', cursor: 'pointer', py: 1, fontSize: '0.875rem', textAlign: 'center', color: 'text.secondary' }} onClick={() => requestSort('id')}>
+                <TableSortLabel
+                  active={sortConfig.key === 'id'}
+                  direction={sortConfig.key === 'id' ? sortConfig.direction : 'asc'}
+                >
+                  ID
+                </TableSortLabel>
+              </TableCell>
+              <TableCell sx={{ fontWeight: 'bold', cursor: 'pointer', py: 1, fontSize: '0.875rem', textAlign: 'center', color: 'text.secondary' }} onClick={() => requestSort('fileName')}>
+                <TableSortLabel
+                  active={sortConfig.key === 'fileName'}
+                  direction={sortConfig.key === 'fileName' ? sortConfig.direction : 'asc'}
+                >
+                  Arquivo
+                </TableSortLabel>
+              </TableCell>
+              <TableCell sx={{ fontWeight: 'bold', cursor: 'pointer', py: 1, fontSize: '0.875rem', textAlign: 'center', color: 'text.secondary' }} onClick={() => requestSort('uploadDate')}>
+                <TableSortLabel
+                  active={sortConfig.key === 'uploadDate'}
+                  direction={sortConfig.key === 'uploadDate' ? sortConfig.direction : 'asc'}
+                >
+                  Data de Upload
+                </TableSortLabel>
+              </TableCell>
+              <TableCell sx={{ fontWeight: 'bold', cursor: 'pointer', py: 1, fontSize: '0.875rem', textAlign: 'center', color: 'text.secondary' }} onClick={() => requestSort('duration')}>
+                <TableSortLabel
+                  active={sortConfig.key === 'duration'}
+                  direction={sortConfig.key === 'duration' ? sortConfig.direction : 'asc'}
+                >
+                  Duração
+                </TableSortLabel>
+              </TableCell>
+              <TableCell sx={{ fontWeight: 'bold', cursor: 'pointer', py: 1, fontSize: '0.875rem', textAlign: 'center', color: 'text.secondary' }} onClick={() => requestSort('status')}>
+                <TableSortLabel
+                  active={sortConfig.key === 'status'}
+                  direction={sortConfig.key === 'status' ? sortConfig.direction : 'asc'}
+                >
+                  Status
+                </TableSortLabel>
+              </TableCell>
+              <TableCell sx={{ fontWeight: 'bold', textAlign: 'center', py: 1, fontSize: '0.875rem', color: 'text.secondary' }}>Download</TableCell>
+              <TableCell sx={{ fontWeight: 'bold', textAlign: 'center', py: 1, fontSize: '0.875rem', color: 'text.secondary' }}>Logs</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
             {sortedVideos.length === 0 ? (
-              <tr>
-                <td colSpan="8" style={{ textAlign: 'center', padding: '40px' }}>
-                  <div className="empty-state">
-                    <p>Nenhum vídeo encontrado com os filtros aplicados</p>
-                    <small>Tente ajustar os filtros ou limpar a pesquisa</small>
-                  </div>
-                </td>
-              </tr>
+              <TableRow>
+                <TableCell colSpan={7} sx={{ textAlign: 'center', py: 4 }}>
+                  <Typography variant="h6" color="text.secondary" sx={{ fontSize: '1rem' }}>
+                    Nenhum vídeo encontrado com os filtros aplicados
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem' }}>
+                    Tente ajustar os filtros ou limpar a pesquisa
+                  </Typography>
+                </TableCell>
+              </TableRow>
             ) : (
               sortedVideos.map((video) => (
-              <React.Fragment key={video.id}>
-                <tr 
-                  className={`video-row ${expandedRows.has(video.id) ? 'expanded' : ''}`}
-                  onClick={() => toggleRow(video.id)}
-                  style={{ cursor: 'pointer' }}
-                >
-                  {/* Identificação */}
-                  <td className="id-cell">
-                    <span className="expand-icon">
-                      {expandedRows.has(video.id) ? '−' : '+'}
-                    </span>
-                    {video.id}
-                  </td>
-                  <td className="file-name">{video.fileName}</td>
-                  <td>{video.extensionFile || '-'}</td>
-                  <td>{formatDate(video.uploadDate)}</td>
-                  <td>{formatDuration(video.duration)}</td>
-                  <td>{getStatusBadge(video.status)}</td>
-                  
-                  {/* Ações */}
-                  <td onClick={(e) => e.stopPropagation()}>
-                    <button 
-                      className="btn-action btn-download"
-                      onClick={() => onDownload(video)}
-                      disabled={video.status !== 'FINISHED'}
-                      title={video.status === 'FINISHED' ? 'Download' : 'Disponível apenas quando o processamento for concluído'}
-                    >
-                      ⬇️
-                    </button>
-                  </td>
-                  <td onClick={(e) => e.stopPropagation()}>
-                    <button 
-                      className="btn-action btn-logs"
-                      onClick={() => onViewLogs(video)}
-                      title="Ver Logs"
-                    >
-                      📋
-                    </button>
-                  </td>
-                </tr>
-                
-                {/* Linha de detalhes expandida */}
-                {expandedRows.has(video.id) && (
-                  <tr className="details-row">
-                    <td colSpan="8">
-                      <div className="details-content">
-                        <div className="details-section">
-                          <h4>Informações de Processamento</h4>
-                          <div className="details-grid">
-                            <div className="detail-item">
-                              <span className="detail-label">Unidade de Tempo:</span>
-                              <span className="detail-value">{formatTimeUnit(video.timeUnit)}</span>
-                            </div>
-                            <div className="detail-item">
-                              <span className="detail-label">Tempo Inicial:</span>
-                              <span className="detail-value">{video.startTime ?? '-'}</span>
-                            </div>
-                            <div className="detail-item">
-                              <span className="detail-label">Tempo Final:</span>
-                              <span className="detail-value">{video.endTime ?? '-'}</span>
-                            </div>
-                            <div className="detail-item">
-                              <span className="detail-label">Intervalo:</span>
-                              <span className="detail-value">{video.interval || '-'}</span>
-                            </div>
-                            <div className="detail-item">
-                              <span className="detail-label">Qualidade:</span>
-                              <span className="detail-value">{video.quality || '-'}</span>
-                            </div>
-                            <div className="detail-item">
-                              <span className="detail-label">Máx. Retentativas:</span>
-                              <span className="detail-value">{video.maxRetries ?? '-'}</span>
-                            </div>
-                            <div className="detail-item">
-                              <span className="detail-label">Retentativas:</span>
-                              <span className="detail-value">{video.retries ?? 0}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </React.Fragment>
-            ))
+                <React.Fragment key={video.id}>
+                  <TableRow
+                    hover
+                    sx={{ cursor: 'pointer' }}
+                    onClick={() => toggleRow(video.id)}
+                  >
+                    <TableCell sx={{ py: 1, textAlign: 'center', color: 'text.secondary' }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'center' }}>
+                        <IconButton size="small" sx={{ p: 0.5 }}>
+                          {expandedRows.has(video.id) ? <KeyboardArrowUpIcon fontSize="small" /> : <KeyboardArrowDownIcon fontSize="small" />}
+                        </IconButton>
+                        <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>{video.id}</Typography>
+                      </Box>
+                    </TableCell>
+                    <TableCell sx={{ py: 1, textAlign: 'center', color: 'text.secondary' }}>
+                      <Box sx={{ textAlign: 'center' }}>
+                        <Typography variant="body2" sx={{ fontWeight: 'medium', fontSize: '0.875rem' }}>
+                          {video.fileName}.{video.fileExtension}
+                        </Typography>
+                      </Box>
+                    </TableCell>
+                    <TableCell sx={{ py: 1, fontSize: '0.875rem', textAlign: 'center', color: 'text.secondary' }}>{formatDate(video.uploadDate)}</TableCell>
+                    <TableCell sx={{ py: 1, fontSize: '0.875rem', textAlign: 'center', color: 'text.secondary' }}>{formatDuration(video.duration)}</TableCell>
+                    <TableCell sx={{ py: 1, textAlign: 'center' }}>{getStatusBadge(video.status)}</TableCell>
+                    <TableCell sx={{ textAlign: 'center', py: 1 }}>
+                      <IconButton
+                        sx={{
+                          background: 'linear-gradient(135deg, #4c51bf 0%, #5a3d9a 100%)',
+                          color: 'white',
+                          '&:hover': {
+                            background: 'linear-gradient(135deg, #5a3d9a 0%, #4c51bf 100%)',
+                          },
+                          '&:disabled': {
+                            background: 'grey.300',
+                            color: 'grey.500'
+                          }
+                        }}
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDownload(video);
+                        }}
+                        disabled={video.status !== 'FINISHED'}
+                        title={video.status === 'FINISHED' ? 'Download' : 'Disponível apenas quando o processamento for concluído'}
+                      >
+                        <DownloadIcon fontSize="small" />
+                      </IconButton>
+                    </TableCell>
+                    <TableCell sx={{ textAlign: 'center', py: 1 }}>
+                      <IconButton
+                        sx={{
+                          background: 'linear-gradient(135deg, #4c51bf 0%, #5a3d9a 100%)',
+                          color: 'white',
+                          '&:hover': {
+                            background: 'linear-gradient(135deg, #5a3d9a 0%, #4c51bf 100%)',
+                          },
+                          '&:disabled': {
+                            background: 'grey.300',
+                            color: 'grey.500'
+                          }
+                        }}
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onViewLogs(video);
+                        }}
+                        title="Ver Logs"
+                      >
+                        <DescriptionIcon fontSize="small" />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+
+                  <TableRow>
+                    <TableCell sx={{ py: 0 }} colSpan={7}>
+                      <Collapse in={expandedRows.has(video.id)} timeout="auto" unmountOnExit>
+                        <Box sx={{ p: 1.5 }}>
+                          <Typography variant="h6" gutterBottom sx={{ fontSize: '1.125rem', mb: 1, color: 'text.secondary', fontWeight: 'bold' }}>
+                            Informações de Processamento
+                          </Typography>
+                          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 1.5 }}>
+                            <Box>
+                              <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem', fontWeight: 'bold' }}>Unidade de Tempo:</Typography>
+                              <Typography variant="body1" sx={{ fontSize: '0.875rem', color: 'text.secondary' }}>{formatTimeUnit(video.timeUnit)}</Typography>
+                            </Box>
+                            <Box>
+                              <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem', fontWeight: 'bold' }}>Tempo Inicial:</Typography>
+                              <Typography variant="body1" sx={{ fontSize: '0.875rem', color: 'text.secondary' }}>{video.startTime ?? '-'}</Typography>
+                            </Box>
+                            <Box>
+                              <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem', fontWeight: 'bold' }}>Tempo Final:</Typography>
+                              <Typography variant="body1" sx={{ fontSize: '0.875rem', color: 'text.secondary' }}>{video.endTime ?? '-'}</Typography>
+                            </Box>
+                            <Box>
+                              <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem', fontWeight: 'bold' }}>Intervalo:</Typography>
+                              <Typography variant="body1" sx={{ fontSize: '0.875rem', color: 'text.secondary' }}>{video.interval || '-'}</Typography>
+                            </Box>
+                            <Box>
+                              <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem', fontWeight: 'bold' }}>Qualidade:</Typography>
+                              <Typography variant="body1" sx={{ fontSize: '0.875rem', color: 'text.secondary' }}>{video.quality || '-'}</Typography>
+                            </Box>
+                            <Box>
+                              <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem', fontWeight: 'bold' }}>Máx. Retentativas:</Typography>
+                              <Typography variant="body1" sx={{ fontSize: '0.875rem', color: 'text.secondary' }}>{video.maxRetries ?? '-'}</Typography>
+                            </Box>
+                            <Box>
+                              <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem', fontWeight: 'bold' }}>Retentativas:</Typography>
+                              <Typography variant="body1" sx={{ fontSize: '0.875rem', color: 'text.secondary' }}>{video.retries ?? 0}</Typography>
+                            </Box>
+                          </Box>
+                        </Box>
+                      </Collapse>
+                    </TableCell>
+                  </TableRow>
+                </React.Fragment>
+              ))
             )}
-          </tbody>
-        </table>
-      </div>
-    </div>
+          </TableBody>
+        </Table>
+      </TableContainer>
+    </Box>
   );
 };
 

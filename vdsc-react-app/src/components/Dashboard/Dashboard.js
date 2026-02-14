@@ -5,7 +5,21 @@ import VideoTable from './VideoTable';
 import UploadModal from './UploadModal';
 import LogsModal from './LogsModal';
 import NotificationIcon from './NotificationIcon';
-import './Dashboard.css';
+import {
+  AppBar,
+  Toolbar,
+  Box,
+  Typography,
+  Button,
+  Container,
+  Alert,
+  IconButton
+} from '@mui/material';
+import {
+  CloudUpload as CloudUploadIcon,
+  Refresh as RefreshIcon,
+  Logout as LogoutIcon
+} from '@mui/icons-material';
 
 const Dashboard = ({ onSignOut }) => {
   const [videos, setVideos] = useState([]);
@@ -64,7 +78,9 @@ const Dashboard = ({ onSignOut }) => {
 
   const handleDownload = async (video) => {
     try {
-      await videoAPI.downloadVideo(video.id);
+      // Format: fileName.zip
+      const downloadFileName = `${video.fileName}.zip`;
+      await videoAPI.downloadVideo(downloadFileName);
     } catch (err) {
       console.error('Error downloading video:', err);
       alert('Erro ao baixar vídeo. Tente novamente.');
@@ -90,47 +106,106 @@ const Dashboard = ({ onSignOut }) => {
   };
 
   return (
-    <div className="dashboard-container">
-      <header className="dashboard-header">
-        <div className="header-content">
-          <div className="header-left">
-            <img src="/logo_ico.png" alt="Video Slice" className="dashboard-logo" />
-            <h1>Video Slice - Dashboard</h1>
-          </div>
-          <div className="user-info">
-            <span className="user-name">Olá, {userName}</span>
-            <NotificationIcon
-              onNewNotification={handleNewNotification}
-              onNotificationRead={handleNotificationRead}
-            />
-            <button className="btn-logout" onClick={handleSignOut}>
-              Sair
-            </button>
-          </div>
-        </div>
-      </header>
+    <Box sx={{ minHeight: '100vh', bgcolor: '#f5f7fa' }}>
+      <AppBar 
+        position="static" 
+        sx={{ 
+          background: 'linear-gradient(135deg, #0a0e1a 0%, #1a1f35 100%)',
+          boxShadow: '0 2px 10px rgba(0, 0, 0, 0.3)'
+        }}
+      >
+        <Container maxWidth="xl">
+          <Toolbar disableGutters sx={{ py: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexGrow: 1 }}>
+              <img 
+                src="/logo_ico.png" 
+                alt="Video Slice" 
+                style={{ width: 75, height: 75, objectFit: 'contain' }}
+              />
+              <Typography variant="h5" component="h1" sx={{ fontWeight: 600 }}>
+                Video Slice - Dashboard
+              </Typography>
+            </Box>
+            
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                Olá, {userName}
+              </Typography>
+              <NotificationIcon
+                onNewNotification={handleNewNotification}
+                onNotificationRead={handleNotificationRead}
+              />
+              <Button
+                variant="outlined"
+                color="inherit"
+                startIcon={<LogoutIcon />}
+                onClick={handleSignOut}
+                sx={{
+                  borderColor: 'white',
+                  color: 'white',
+                  fontWeight: 600,
+                  '&:hover': {
+                    bgcolor: 'white',
+                    color: '#667eea',
+                    borderColor: 'white'
+                  }
+                }}
+              >
+                Sair
+              </Button>
+            </Box>
+          </Toolbar>
+        </Container>
+      </AppBar>
 
-      <main className="dashboard-main">
-        <div className="dashboard-actions">
-          <button 
-            className="btn-upload"
+      <Container maxWidth="xl" sx={{ py: 4 }}>
+        <Box sx={{ display: 'flex', gap: 1.5, mb: 3 }}>
+          <Button
+            variant="contained"
+            startIcon={<CloudUploadIcon />}
             onClick={() => setShowUploadModal(true)}
+            sx={{
+              background: 'linear-gradient(135deg, #4c51bf 0%, #5a3d9a 100%)',
+              color: 'white',
+              fontWeight: 600,
+              px: 3,
+              py: 1.5,
+              boxShadow: '0 4px 15px rgba(76, 81, 191, 0.3)',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 6px 20px rgba(102, 126, 234, 0.4)',
+              }
+            }}
           >
-            + Upload Novo Vídeo
-          </button>
-          <button 
-            className="btn-refresh"
+            Upload Novo Vídeo
+          </Button>
+          
+          <Button
+            variant="outlined"
+            startIcon={<RefreshIcon />}
             onClick={loadVideos}
             disabled={loading}
+            sx={{
+              borderColor: '#5461d0',
+              color: '#5461d0',
+              fontWeight: 600,
+              px: 3,
+              py: 1.5,
+              '&:hover': {
+                bgcolor: '#5461d0',
+                color: 'white',
+                borderColor: '#5461d0'
+              }
+            }}
           >
-            🔄 Atualizar
-          </button>
-        </div>
+            Atualizar
+          </Button>
+        </Box>
 
         {error && (
-          <div className="error-banner">
+          <Alert severity="error" sx={{ mb: 3 }}>
             {error}
-          </div>
+          </Alert>
         )}
 
         <VideoTable 
@@ -139,7 +214,7 @@ const Dashboard = ({ onSignOut }) => {
           onDownload={handleDownload}
           onViewLogs={handleViewLogs}
         />
-      </main>
+      </Container>
 
       {showUploadModal && (
         <UploadModal 
@@ -154,7 +229,7 @@ const Dashboard = ({ onSignOut }) => {
           onClose={() => setShowLogsModal(false)}
         />
       )}
-    </div>
+    </Box>
   );
 };
 

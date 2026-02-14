@@ -258,6 +258,27 @@ describe('UploadModal Component', () => {
       });
     });
 
+    it('deve chamar getUploadUrl com formato videoId.fileExtension', async () => {
+      createMockVideoElement(60, 1920, 1080);
+      renderUploadModal();
+
+      const file = createMockFile('video.mp4');
+      const input = document.querySelector('input[type="file"]');
+
+      await act(async () => {
+        Object.defineProperty(input, 'files', { value: [file], writable: false });
+        fireEvent.change(input);
+      });
+
+      await waitFor(() => {
+        expect(videoAPI.getUploadUrl).toHaveBeenCalled();
+      });
+
+      const callArgs = videoAPI.getUploadUrl.mock.calls[0][0];
+      // Validar que está no formato videoId.fileExtension
+      expect(callArgs).toMatch(/^[a-zA-Z0-9]{12}\.mp4$/);
+    });
+
     it('deve exibir erro ao falhar obtenção de URL de upload', async () => {
       createMockVideoElement(60, 1920, 1080);
       videoAPI.getUploadUrl.mockRejectedValueOnce(new Error('Erro na API'));
@@ -787,6 +808,54 @@ describe('UploadModal Component', () => {
       });
     });
 
+    it('deve enviar metadados com os campos corretos', async () => {
+      createMockVideoElement(60, 1920, 1080);
+      renderUploadModal();
+
+      const file = createMockFile('video.mp4');
+      const input = document.querySelector('input[type="file"]');
+
+      await act(async () => {
+        Object.defineProperty(input, 'files', { value: [file], writable: false });
+        fireEvent.change(input);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/intervalo/i)).toBeInTheDocument();
+      });
+
+      const intervalInput = screen.getByLabelText(/intervalo/i);
+
+      await act(async () => {
+        fireEvent.change(intervalInput, { target: { value: '10' } });
+      });
+
+      const submitButton = screen.getByRole('button', { name: /enviar vídeo/i });
+
+      await act(async () => {
+        fireEvent.click(submitButton);
+      });
+
+      await waitFor(() => {
+        expect(videoAPI.uploadVideoMetadata).toHaveBeenCalled();
+      });
+
+      const metadata = videoAPI.uploadVideoMetadata.mock.calls[0][0];
+
+      // Validar que os campos novos estão presentes
+      expect(metadata).toHaveProperty('fileExtension', 'mp4');
+      expect(metadata).toHaveProperty('intervalTime');
+      expect(metadata).toHaveProperty('maxRetries');
+      expect(metadata).toHaveProperty('resize');
+      expect(metadata).toHaveProperty('qualityOutputLevel', 80);
+
+      // Validar que campos antigos não estão mais presentes
+      expect(metadata).not.toHaveProperty('extensionFile');
+      expect(metadata).not.toHaveProperty('timeInterval');
+      expect(metadata).not.toHaveProperty('maxRetry');
+      expect(metadata).not.toHaveProperty('quality');
+    });
+
     it('deve exibir progresso durante upload', async () => {
       createMockVideoElement(60, 1920, 1080);
 
@@ -1027,6 +1096,125 @@ describe('UploadModal Component', () => {
       });
 
       expect(qualitySelect.value).toBe('high');
+    });
+
+    it('deve ter nível de qualidade padrão em 80', async () => {
+      createMockVideoElement(60, 1920, 1080);
+      renderUploadModal();
+
+      const file = createMockFile('video.mp4');
+      const input = document.querySelector('input[type="file"]');
+
+      await act(async () => {
+        Object.defineProperty(input, 'files', { value: [file], writable: false });
+        fireEvent.change(input);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/nível de qualidade/i)).toBeInTheDocument();
+      });
+
+      const qualitySlider = screen.getByLabelText(/nível de qualidade/i);
+      expect(qualitySlider.value).toBe('80');
+    });
+
+    it('deve permitir ajustar nível de qualidade com slider', async () => {
+      createMockVideoElement(60, 1920, 1080);
+      renderUploadModal();
+
+      const file = createMockFile('video.mp4');
+      const input = document.querySelector('input[type="file"]');
+
+      await act(async () => {
+        Object.defineProperty(input, 'files', { value: [file], writable: false });
+        fireEvent.change(input);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/nível de qualidade/i)).toBeInTheDocument();
+      });
+
+      const qualitySlider = screen.getByLabelText(/nível de qualidade/i);
+
+      await act(async () => {
+        fireEvent.change(qualitySlider, { target: { value: '95' } });
+      });
+
+      expect(qualitySlider.value).toBe('95');
+    });
+
+    it('deve exibir valor atual do nível de qualidade', async () => {
+      createMockVideoElement(60, 1920, 1080);
+      renderUploadModal();
+
+      const file = createMockFile('video.mp4');
+      const input = document.querySelector('input[type="file"]');
+
+      await act(async () => {
+        Object.defineProperty(input, 'files', { value: [file], writable: false });
+        fireEvent.change(input);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/nível de qualidade/i)).toBeInTheDocument();
+      });
+
+      // Busca a label que contém o valor percentual
+      await waitFor(() => {
+        expect(screen.getByText(/80%/)).toBeInTheDocument();
+      });
+
+      const qualitySlider = screen.getByLabelText(/nível de qualidade/i);
+
+      await act(async () => {
+        fireEvent.change(qualitySlider, { target: { value: '60' } });
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText(/60%/)).toBeInTheDocument();
+      });
+    });
+
+    it('deve enviar qualityOutputLevel ajustado no metadata', async () => {
+      createMockVideoElement(60, 1920, 1080);
+      renderUploadModal();
+
+      const file = createMockFile('video.mp4');
+      const input = document.querySelector('input[type="file"]');
+
+      await act(async () => {
+        Object.defineProperty(input, 'files', { value: [file], writable: false });
+        fireEvent.change(input);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/nível de qualidade/i)).toBeInTheDocument();
+      });
+
+      const qualitySlider = screen.getByLabelText(/nível de qualidade/i);
+
+      await act(async () => {
+        fireEvent.change(qualitySlider, { target: { value: '65' } });
+      });
+
+      const intervalInput = screen.getByLabelText(/intervalo/i);
+
+      await act(async () => {
+        fireEvent.change(intervalInput, { target: { value: '10' } });
+      });
+
+      const submitButton = screen.getByRole('button', { name: /enviar vídeo/i });
+
+      await act(async () => {
+        fireEvent.click(submitButton);
+      });
+
+      await waitFor(() => {
+        expect(videoAPI.uploadVideoMetadata).toHaveBeenCalled();
+      });
+
+      const metadata = videoAPI.uploadVideoMetadata.mock.calls[0][0];
+      expect(metadata.qualityOutputLevel).toBe(65);
     });
   });
 });
