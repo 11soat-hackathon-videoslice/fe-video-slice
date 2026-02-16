@@ -1,5 +1,5 @@
-import { generateClient } from 'aws-amplify/api';
-import { fetchAuthSession, getCurrentUser } from 'aws-amplify/auth';
+import {generateClient} from 'aws-amplify/api';
+import {getCurrentUser} from 'aws-amplify/auth';
 
 // Cria cliente GraphQL para AppSync
 const client = generateClient();

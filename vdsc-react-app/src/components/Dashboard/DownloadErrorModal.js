@@ -1,19 +1,16 @@
 import React from 'react';
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
-  Box,
-  Typography,
-  Alert,
-  AlertTitle
+    Alert,
+    AlertTitle,
+    Box,
+    Button,
+    Dialog,
+    DialogActions,
+    DialogContent,
+    DialogTitle,
+    Typography
 } from '@mui/material';
-import {
-  Close as CloseIcon,
-  Error as ErrorIcon
-} from '@mui/icons-material';
+import {Close as CloseIcon, Error as ErrorIcon} from '@mui/icons-material';
 
 const DownloadErrorModal = ({ open, onClose, error, videoName }) => {
   const getErrorMessage = (error) => {
