@@ -83,7 +83,6 @@ const UploadModal = ({ onClose, onSuccess }) => {
     endTime: 0,
     interval: '',
     resize: 'original',
-    quality: 'original',
     qualityOutputLevel: 80
   });
 
@@ -283,7 +282,7 @@ const UploadModal = ({ onClose, onSuccess }) => {
 
   // Calculate resize preview message
   const calculateResizePreview = () => {
-    if (!videoResolution.width || !videoResolution.height || formData.quality === 'original') {
+    if (!videoResolution.width || !videoResolution.height || formData.resize === 'original') {
       return null;
     }
 
@@ -294,7 +293,7 @@ const UploadModal = ({ onClose, onSuccess }) => {
       'low': 360
     };
 
-    const targetSize = qualityTargets[formData.quality];
+    const targetSize = qualityTargets[formData.resize];
     if (!targetSize) return null;
 
     const { width, height } = videoResolution;
@@ -1028,8 +1027,8 @@ const UploadModal = ({ onClose, onSuccess }) => {
                       <Select
                         labelId="quality-label"
                         id="quality"
-                        name="quality"
-                        value={formData.quality}
+                        name="resize"
+                        value={formData.resize}
                         onChange={handleInputChange}
                         label="Tamanho"
                         variant="outlined"

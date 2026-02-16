@@ -13,6 +13,7 @@ import {
   MenuItem,
   Typography
 } from '@mui/material';
+import {keyframes} from '@mui/system';
 import {
   CheckCircle as CheckCircleIcon,
   Error as ErrorIcon,
@@ -21,6 +22,22 @@ import {
   NotificationsNone as NotificationsNoneIcon,
   Warning as WarningIcon
 } from '@mui/icons-material';
+
+// Keyframes para animação de pulso (igual ao VideoTable)
+const pulseAnimation = keyframes`
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+`;
 
 const NotificationIcon = ({ onNewNotification, onNotificationRead }) => {
   const [notifications, setNotifications] = useState([]);
@@ -247,17 +264,66 @@ const NotificationIcon = ({ onNewNotification, onNotificationRead }) => {
     }
   };
 
-  const getStatusStyle = (status) => {
-    const statusStyles = {
-      'uploaded': { bg: '#CE93D8', color: '#4A148C', label: 'Carregado' },
-      'processing': { bg: '#CE93D8', color: '#4A148C', label: 'Processando' },
-      'finished': { bg: '#A5D6A7', color: '#1B5E20', label: 'Concluído' },
-      'failed': { bg: '#EF9A9A', color: '#B71C1C', label: 'Falhou' },
-      'retrying': { bg: '#FFF176', color: '#E65100', label: 'Retentativa Agendada' }
+  const getStatusBadge = (status) => {
+    const statusMap = {
+      'UPLOADED': {
+        label: 'Carregado',
+        color: '#CE93D8',
+        textColor: '#4A148C'
+      },
+      'PROCESSING': {
+        label: 'Processando',
+        color: '#CE93D8',
+        textColor: '#4A148C',
+        isProcessing: true
+      },
+      'FINISHED': {
+        label: 'Concluído',
+        color: '#A5D6A7',
+        textColor: '#1B5E20'
+      },
+      'FAILED': {
+        label: 'Falhou',
+        color: '#EF9A9A',
+        textColor: '#B71C1C'
+      },
+      'RETRYING': {
+        label: 'Retentativa Agendada',
+        color: '#FFF176',
+        textColor: '#E65100'
+      }
     };
 
-    const style = statusStyles[status?.toLowerCase()] || { bg: '#F5F5F5', color: '#424242', label: status };
-    return style;
+    const statusInfo = statusMap[status?.toUpperCase()] || {
+      label: status,
+      color: '#F5F5F5',
+      textColor: '#424242'
+    };
+
+    return (
+      <Chip
+        label={statusInfo.label}
+        size="small"
+        sx={{
+          backgroundColor: statusInfo.color,
+          color: statusInfo.textColor,
+          fontWeight: 'bold',
+          textAlign: 'center',
+          alignItems: 'center',
+          alignSelf: 'center',
+          px: 0.5,
+          py: 0.25,
+          fontSize: '11px',
+          minHeight: '20px',
+          whiteSpace: 'nowrap',
+          flexShrink: 0,
+          height: 'auto',
+          ...(statusInfo.isProcessing && {
+            animation: `${pulseAnimation} 1.5s ease-in-out infinite`
+          })
+        }}
+      />
+    );
   };
 
   return (
@@ -286,12 +352,15 @@ const NotificationIcon = ({ onNewNotification, onNotificationRead }) => {
         }}
         PaperProps={{
           sx: {
-            width: 450,
-            maxHeight: 450,
+            width: 600,
+            maxHeight: 350,
+            overflow: 'hidden',
             m: 0,
             p: 0,
             '& .MuiList-root': {
-              p: 0
+              p: 0,
+              maxHeight: 'calc(350px - 56px)',
+              overflowY: 'auto'
             }
           }
         }}
@@ -358,40 +427,55 @@ const NotificationIcon = ({ onNewNotification, onNotificationRead }) => {
                 borderBottom: '1px solid #e5e7eb',
                 borderLeft: '4px solid transparent',
                 transition: 'all 0.2s ease',
+                display: 'flex',
+                alignItems: 'center',
                 '&:hover': {
                   bgcolor: '#f3f4f6',
                   borderLeft: '4px solid #4c51bf'
                 }
               }}
             >
-              <ListItemIcon sx={{ minWidth: 32 }}>
+              <ListItemIcon sx={{ minWidth: 32, alignSelf: 'flex-start', mt: 0.5 }}>
                 {notification.type === 'success' && <CheckCircleIcon color="success" fontSize="small" />}
                 {notification.type === 'error' && <ErrorIcon color="error" fontSize="small" />}
                 {notification.type === 'info' && <InfoIcon color="info" fontSize="small" />}
                 {notification.type === 'warning' && <WarningIcon color="warning" fontSize="small" />}
               </ListItemIcon>
-              <Box sx={{ flex: 1 }}>
+              <Box sx={{
+                flex: 1,
+                minWidth: 0,
+                maxWidth: notification.status ? 'calc(100% - 130px)' : '100%',
+                overflow: 'hidden'
+              }}>
                 <ListItemText
                   primary={notification.message}
                   secondary={formatTimestamp(notification.timestamp)}
-                  primaryTypographyProps={{ variant: 'body2', fontSize: '0.875rem' }}
-                  secondaryTypographyProps={{ variant: 'caption', fontSize: '0.7rem' }}
+                  primaryTypographyProps={{
+                    variant: 'body2',
+                    fontSize: '0.8125rem',
+                    color: '#424242',
+                    sx: {
+                      wordWrap: 'break-word',
+                      overflowWrap: 'break-word',
+                      whiteSpace: 'normal'
+                    }
+                  }}
+                  secondaryTypographyProps={{
+                    variant: 'caption',
+                    fontSize: '0.6875rem',
+                    color: '#616161',
+                    sx: {
+                      wordWrap: 'break-word',
+                      overflowWrap: 'break-word',
+                      whiteSpace: 'normal'
+                    }
+                  }}
                 />
               </Box>
               {notification.status && (
-                <Chip
-                  label={getStatusStyle(notification.status).label}
-                  size="small"
-                  sx={{
-                    ml: 1,
-                    height: 20,
-                    fontSize: '0.65rem',
-                    fontWeight: 600,
-                    bgcolor: getStatusStyle(notification.status).bg,
-                    color: getStatusStyle(notification.status).color,
-                    border: 'none'
-                  }}
-                />
+                <Box sx={{ ml: 1, display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                  {getStatusBadge(notification.status)}
+                </Box>
               )}
             </MenuItem>
           ))
