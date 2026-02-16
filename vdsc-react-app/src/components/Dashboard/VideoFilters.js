@@ -1,20 +1,17 @@
 import React from 'react';
 import {
-  Box,
-  Typography,
-  TextField,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Button,
-  Grid,
-  Paper
+    Box,
+    Button,
+    FormControl,
+    Grid,
+    InputLabel,
+    MenuItem,
+    Paper,
+    Select,
+    TextField,
+    Typography
 } from '@mui/material';
-import {
-  Search as SearchIcon,
-  Clear as ClearIcon
-} from '@mui/icons-material';
+import {Clear as ClearIcon, Search as SearchIcon} from '@mui/icons-material';
 
 const VideoFilters = ({ filters, onFilterChange, onClearFilters }) => {
   const handleInputChange = (field, value) => {

@@ -1,22 +1,19 @@
 import React from 'react';
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
-  Box,
-  Typography,
-  IconButton,
-  List,
-  ListItem,
-  ListItemText,
-  Divider
+    Box,
+    Button,
+    Dialog,
+    DialogActions,
+    DialogContent,
+    DialogTitle,
+    Divider,
+    IconButton,
+    List,
+    ListItem,
+    ListItemText,
+    Typography
 } from '@mui/material';
-import {
-  Close as CloseIcon,
-  Description as DescriptionIcon
-} from '@mui/icons-material';
+import {Close as CloseIcon} from '@mui/icons-material';
 
 const LogsModal = ({ video, onClose }) => {
   const formatDate = (dateString) => {

@@ -1,24 +1,24 @@
-import React, { useState, useMemo } from 'react';
+import React, {useMemo, useState} from 'react';
 import VideoFilters from './VideoFilters';
 import {
+  Box,
+  Chip,
+  CircularProgress,
+  Collapse,
+  IconButton,
+  Paper,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
-  Chip,
-  IconButton,
-  Collapse,
-  Box,
-  Typography,
-  CircularProgress
+  Typography
 } from '@mui/material';
-import { keyframes } from '@mui/system';
+import {keyframes} from '@mui/system';
 import {
-  Download as DownloadIcon,
   Description as DescriptionIcon,
+  Download as DownloadIcon,
   KeyboardArrowDown as KeyboardArrowDownIcon,
   KeyboardArrowUp as KeyboardArrowUpIcon
 } from '@mui/icons-material';

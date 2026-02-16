@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { getCurrentUser } from 'aws-amplify/auth';
-import { Box, CircularProgress, Typography } from '@mui/material';
+import React, {useEffect, useState} from 'react';
+import {getCurrentUser} from 'aws-amplify/auth';
+import {Box, CircularProgress, Typography} from '@mui/material';
 import Login from './components/Auth/Login';
 import Register from './components/Auth/Register';
 import ForgotPassword from './components/Auth/ForgotPassword';

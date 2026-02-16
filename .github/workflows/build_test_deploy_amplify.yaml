@@ -6,12 +6,6 @@ permissions:
 
 on:
   workflow_dispatch:
-    inputs:
-      deploy_only:
-        description: 'Pular testes e executar apenas o deploy (true/false)'
-        required: false
-        default: false
-        type: boolean
 
 #  push:
 #    branches:

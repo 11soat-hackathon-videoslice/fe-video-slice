@@ -1,24 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { signOut, fetchUserAttributes } from 'aws-amplify/auth';
-import { videoAPI } from '../../services/api';
+import React, {useEffect, useState} from 'react';
+import {fetchUserAttributes, signOut} from 'aws-amplify/auth';
+import {videoAPI} from '../../services/api';
 import VideoTable from './VideoTable';
 import UploadModal from './UploadModal';
 import LogsModal from './LogsModal';
 import NotificationIcon from './NotificationIcon';
-import {
-  AppBar,
-  Toolbar,
-  Box,
-  Typography,
-  Button,
-  Alert,
-  IconButton
-} from '@mui/material';
-import {
-  CloudUpload as CloudUploadIcon,
-  Refresh as RefreshIcon,
-  Logout as LogoutIcon
-} from '@mui/icons-material';
+import {Alert, AppBar, Box, Button, Toolbar, Typography} from '@mui/material';
+import {CloudUpload as CloudUploadIcon, Logout as LogoutIcon, Refresh as RefreshIcon} from '@mui/icons-material';
 
 const Dashboard = ({ onSignOut }) => {
   const [videos, setVideos] = useState([]);

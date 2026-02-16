@@ -1,26 +1,25 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { notificationService } from '../../services/notificationService';
+import React, {useEffect, useRef, useState} from 'react';
+import {notificationService} from '../../services/notificationService';
 import {
-  IconButton,
-  Badge,
-  Menu,
-  MenuItem,
-  Typography,
-  Box,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
-  Divider,
-  Button,
-  CircularProgress
+    Badge,
+    Box,
+    Button,
+    CircularProgress,
+    Divider,
+    IconButton,
+    ListItemIcon,
+    ListItemText,
+    Menu,
+    MenuItem,
+    Typography
 } from '@mui/material';
 import {
-  Notifications as NotificationsIcon,
-  NotificationsNone as NotificationsNoneIcon,
-  CheckCircle as CheckCircleIcon,
-  Error as ErrorIcon,
-  Info as InfoIcon,
-  Warning as WarningIcon
+    CheckCircle as CheckCircleIcon,
+    Error as ErrorIcon,
+    Info as InfoIcon,
+    Notifications as NotificationsIcon,
+    NotificationsNone as NotificationsNoneIcon,
+    Warning as WarningIcon
 } from '@mui/icons-material';
 
 const NotificationIcon = ({ onNewNotification, onNotificationRead }) => {

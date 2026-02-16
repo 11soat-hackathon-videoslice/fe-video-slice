@@ -1,26 +1,26 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import PropTypes from 'prop-types';
-import { getCurrentUser } from 'aws-amplify/auth';
-import { videoAPI, uploadToS3 } from '../../services/api';
+import {getCurrentUser} from 'aws-amplify/auth';
+import {uploadToS3, videoAPI} from '../../services/api';
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
-  Box,
-  Typography,
-  IconButton,
-  Paper,
   Alert,
-  Grid,
-  TextField,
+  Box,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   FormControl,
+  Grid,
+  IconButton,
   InputLabel,
-  Select,
+  LinearProgress,
   MenuItem,
+  Paper,
+  Select,
   Slider,
-  LinearProgress
+  TextField,
+  Typography
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
