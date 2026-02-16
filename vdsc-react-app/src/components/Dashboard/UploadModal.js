@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { getCurrentUser } from 'aws-amplify/auth';
 import { videoAPI, uploadToS3 } from '../../services/api';
@@ -12,7 +12,6 @@ import {
   Typography,
   IconButton,
   Paper,
-  CircularProgress,
   Alert,
   Grid,
   TextField,
@@ -26,17 +25,38 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 
+// LinearProgressWithLabel component
+function LinearProgressWithLabel(props) {
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Box sx={{ width: '100%', mr: 1 }}>
+        <LinearProgress variant="buffer" value={props.value} valueBuffer={100} sx={props.sx} />
+      </Box>
+      <Box sx={{ minWidth: 45 }}>
+        <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 'bold', fontSize: '0.875rem' }}>
+          {`${Math.round(props.value)}%`}
+        </Typography>
+      </Box>
+    </Box>
+  );
+}
+
+LinearProgressWithLabel.propTypes = {
+  value: PropTypes.number.isRequired,
+  sx: PropTypes.object
+};
+
 // Generate short UUID (12 characters)
 const generateShortUUID = () => {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   let result = '';
   const timestamp = Date.now().toString(36);
   result += timestamp;
-  
+
   while (result.length < 12) {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
   }
-  
+
   return result.substring(0, 12);
 };
 
@@ -51,12 +71,12 @@ const UploadModal = ({ onClose, onSuccess }) => {
   const [preparingUpload, setPreparingUpload] = useState(false);
   const [cancelMessage, setCancelMessage] = useState('');
   const uploadAbortController = useRef(null);
-  
+
   // Video metadata
   const [videoDuration, setVideoDuration] = useState(0);
   const [videoExtension, setVideoExtension] = useState('');
   const [videoResolution, setVideoResolution] = useState({ width: 0, height: 0 });
-  
+
   // Form data
   const [formData, setFormData] = useState({
     fileName: '',
@@ -64,16 +84,18 @@ const UploadModal = ({ onClose, onSuccess }) => {
     startTime: 0,
     endTime: 0,
     interval: '',
+    resize: 'original',
     quality: 'original',
     qualityOutputLevel: 80
   });
-  
+
   const [validationErrors, setValidationErrors] = useState({});
   const fileInputRef = useRef(null);
 
   // Allowed video formats
   const ALLOWED_FORMATS = ['mp4', 'avi', 'mov', 'mkv', 'webm'];
   const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB
+  const MAX_IMAGES = parseInt(process.env.REACT_APP_MAX_IMAGES || '100');
 
   const loadVideoMetadata = useCallback((file) => {
     const video = document.createElement('video');
@@ -82,21 +104,19 @@ const UploadModal = ({ onClose, onSuccess }) => {
     video.onloadedmetadata = () => {
       window.URL.revokeObjectURL(video.src);
       setVideoDuration(video.duration);
-      
+
       // Get video resolution
       const width = video.videoWidth;
       const height = video.videoHeight;
       setVideoResolution({ width, height });
-      
+
       // Set initial endTime based on duration
-      const maxDuration = formData.timeUnit === 'milliseconds' ? 
-        Math.floor(video.duration * 1000) : 
+      const maxDuration = formData.timeUnit === 'milliseconds' ?
+        Math.floor(video.duration * 1000) :
         Math.floor(video.duration);
-      
-      // Determine initial quality based on resolution
-      const minSide = Math.min(width, height);
+
+      // Always use original quality as default
       const initialQuality = 'original';
-      // Always use original quality as default, regardless of resolution
 
       setFormData(prev => ({
         ...prev,
@@ -139,7 +159,7 @@ const UploadModal = ({ onClose, onSuccess }) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    
+
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       handleFileSelect(e.dataTransfer.files[0]);
     }
@@ -154,7 +174,7 @@ const UploadModal = ({ onClose, onSuccess }) => {
   const handleFileSelect = async (selectedFile) => {
     setError('');
     setUploadInfo(null);
-    
+
     // Validate file type
     const extensionFile = selectedFile.name.split('.').pop().toLowerCase();
     if (!ALLOWED_FORMATS.includes(extensionFile)) {
@@ -170,11 +190,11 @@ const UploadModal = ({ onClose, onSuccess }) => {
 
     setFile(selectedFile);
     setVideoExtension(extensionFile);
-    
+
     // Generate unique video ID
     const newVideoId = generateShortUUID();
     setVideoId(newVideoId);
-    
+
     // Set original file name (without extension) - read-only
     const nameWithoutExt = selectedFile.name.replace(/\.[^/.]+$/, "");
     setFormData(prev => ({
@@ -210,89 +230,58 @@ const UploadModal = ({ onClose, onSuccess }) => {
     return intervalValue && intervalValue.includes(',');
   };
 
-  // Calculate total number of images that will be captured
-  const calculateTotalImages = () => {
-    if (!formData.interval.trim() || !videoDuration) return 0;
+  // Calculate preview message - MEMOIZED
+  const calculatePreview = useMemo(() => {
+    return () => {
+      if (!formData.interval.trim() || !videoDuration) return null;
 
-    const maxDuration = getMaxDuration();
-    const intervals = formData.interval.split(',').map(i => parseFloat(i.trim())).filter(n => !isNaN(n));
+      const maxDuration = getMaxDuration();
+      const intervals = formData.interval.split(',').map(i => parseFloat(i.trim())).filter(n => !isNaN(n));
 
-    if (intervals.length === 0) return 0;
+      if (intervals.length === 0) return null;
 
-    if (intervals.length === 1) {
-      // Single interval - regular capture
-      const interval = intervals[0];
-      if (interval <= 0 || interval > maxDuration) return 0;
+      if (intervals.length === 1) {
+        // Single interval - regular capture
+        const interval = intervals[0];
+        if (interval <= 0 || interval > maxDuration) return null;
 
-      const startTime = parseFloat(formData.startTime) || 0;
-      const endTime = parseFloat(formData.endTime) || maxDuration;
+        const startTime = parseFloat(formData.startTime) || 0;
+        const endTime = parseFloat(formData.endTime) || maxDuration;
 
-      if (startTime >= endTime) return 0;
+        if (startTime >= endTime) return null;
 
-      const moments = [];
-      for (let t = startTime; t <= endTime; t += interval) {
-        moments.push(t);
-      }
+        const moments = [];
+        for (let t = startTime; t <= endTime; t += interval) {
+          moments.push(t);
+        }
 
-      return moments.length;
-    } else {
-      // Multiple intervals - specific moments
-      const validMoments = intervals.filter(m => m >= 0 && m <= maxDuration);
-      return validMoments.length;
-    }
-  };
+        const unit = formData.timeUnit === 'milliseconds' ? 'ms' : 's';
+        const totalImages = moments.length;
 
-  // Calculate preview message
-  const calculatePreview = () => {
-    if (!formData.interval.trim() || !videoDuration) return null;
-
-    const maxDuration = getMaxDuration();
-    const intervals = formData.interval.split(',').map(i => parseFloat(i.trim())).filter(n => !isNaN(n));
-
-    if (intervals.length === 0) return null;
-
-    if (intervals.length === 1) {
-      // Single interval - regular capture
-      const interval = intervals[0];
-      if (interval <= 0 || interval > maxDuration) return null;
-
-      const startTime = parseFloat(formData.startTime) || 0;
-      const endTime = parseFloat(formData.endTime) || maxDuration;
-
-      if (startTime >= endTime) return null;
-
-      const moments = [];
-      for (let t = startTime; t <= endTime; t += interval) {
-        moments.push(t);
-      }
-
-      const unit = formData.timeUnit === 'milliseconds' ? 'ms' : 's';
-      const totalImages = moments.length;
-
-      if (moments.length <= 6) {
-        return `Serão capturadas ${totalImages} imagens nos momentos ${moments.map(m => `${m}${unit}`).join(', ')}`;
+        if (moments.length <= 6) {
+          return `Serão capturadas ${totalImages} imagens nos momentos ${moments.map(m => `${m}${unit}`).join(', ')}`;
+        } else {
+          const first3 = moments.slice(0, 3).map(m => `${m}${unit}`).join(', ');
+          const last3 = moments.slice(-3).map(m => `${m}${unit}`).join(', ');
+          return `Serão capturadas ${totalImages} imagens nos momentos ${first3} ... ${last3}`;
+        }
       } else {
-        const first3 = moments.slice(0, 3).map(m => `${m}${unit}`).join(', ');
-        const last3 = moments.slice(-3).map(m => `${m}${unit}`).join(', ');
-        return `Serão capturadas ${totalImages} imagens nos momentos ${first3} ... ${last3}`;
+        // Multiple intervals - specific moments
+        const validMoments = intervals.filter(m => m >= 0 && m <= maxDuration).sort((a, b) => a - b);
+
+        const unit = formData.timeUnit === 'milliseconds' ? 'ms' : 's';
+        const totalImages = validMoments.length;
+
+        if (validMoments.length <= 6) {
+          return `Serão capturadas ${totalImages} imagens nos momentos ${validMoments.map(m => `${m}${unit}`).join(', ')}`;
+        } else {
+          const first3 = validMoments.slice(0, 3).map(m => `${m}${unit}`).join(', ');
+          const last3 = validMoments.slice(-3).map(m => `${m}${unit}`).join(', ');
+          return `Serão capturadas ${totalImages} imagens nos momentos ${first3} ... ${last3}`;
+        }
       }
-    } else {
-      // Multiple intervals - specific moments
-      const validMoments = intervals.filter(m => m >= 0 && m <= maxDuration).sort((a, b) => a - b);
-      const invalidMoments = intervals.filter(m => m < 0 || m > maxDuration);
-
-      if (validMoments.length === 0) return null;
-
-      const unit = formData.timeUnit === 'milliseconds' ? 'ms' : 's';
-      let message = `Serão capturadas ${validMoments.length} imagens nos momentos ${validMoments.map(m => `${m}${unit}`).join(', ')}`;
-
-      if (invalidMoments.length > 0) {
-        message += `. Os valores fora do intervalo válido serão desprezados`;
-      }
-
-      return message;
-    }
-  };
+    };
+  }, [formData.interval, formData.startTime, formData.endTime, videoDuration, formData.timeUnit]);
 
   // Calculate resize preview message
   const calculateResizePreview = () => {
@@ -338,46 +327,81 @@ const UploadModal = ({ onClose, onSuccess }) => {
 
       if (hasMultiple) {
         // Lock start and end times when multiple intervals
-        setFormData(prev => ({
-          ...prev,
-          [name]: value,
-          startTime: 0,
-          endTime: maxDuration
-        }));
+        setFormData(prev => {
+          const newData = {
+            ...prev,
+            [name]: value,
+            startTime: 0,
+            endTime: maxDuration
+          };
+          // Validate after state update
+          setTimeout(() => validateField(name, value, newData), 0);
+          return newData;
+        });
       } else {
-        setFormData(prev => ({
-          ...prev,
-          [name]: value
-        }));
+        setFormData(prev => {
+          const newData = {
+            ...prev,
+            [name]: value
+          };
+          // Validate after state update
+          setTimeout(() => validateField(name, value, newData), 0);
+          return newData;
+        });
       }
     } else if (name === 'startTime' || name === 'endTime') {
       // Convert to number for time fields
       const numValue = value === '' ? 0 : parseFloat(value);
-      setFormData(prev => ({
-        ...prev,
-        [name]: numValue
-      }));
+      setFormData(prev => {
+        const newData = {
+          ...prev,
+          [name]: numValue
+        };
+        // Validate after state update
+        setTimeout(() => validateField(name, numValue, newData), 0);
+        return newData;
+      });
     } else {
-      setFormData(prev => ({
-        ...prev,
-        [name]: value
-      }));
+      setFormData(prev => {
+        const newData = {
+          ...prev,
+          [name]: value
+        };
+        // Validate after state update
+        setTimeout(() => validateField(name, value, newData), 0);
+        return newData;
+      });
     }
-
-    // Validate on change
-    setTimeout(() => validateField(name, value), 0);
   };
 
-  const handleBlur = (e) => {
-    const { name, value } = e.target;
-    validateField(name, value);
-  };
 
-  const validateField = (fieldName, value) => {
+  const validateField = (fieldName, value, updatedFormData = null) => {
     const errors = { ...validationErrors };
     const maxDuration = getMaxDuration();
-    const startTime = fieldName === 'startTime' ? parseFloat(value) : parseFloat(formData.startTime);
-    const endTime = fieldName === 'endTime' ? parseFloat(value) : parseFloat(formData.endTime);
+
+    // Use updated data if provided, otherwise use current state
+    const currentData = updatedFormData || formData;
+
+    // Usa o valor passado para o campo sendo validado, ou busca do estado para outros campos
+    let startTime, endTime, intervalValue;
+
+    if (fieldName === 'startTime') {
+      startTime = parseFloat(value);
+      endTime = parseFloat(currentData.endTime);
+      intervalValue = currentData.interval;
+    } else if (fieldName === 'endTime') {
+      startTime = parseFloat(currentData.startTime);
+      endTime = parseFloat(value);
+      intervalValue = currentData.interval;
+    } else if (fieldName === 'interval') {
+      startTime = parseFloat(currentData.startTime);
+      endTime = parseFloat(currentData.endTime);
+      intervalValue = value;
+    } else {
+      startTime = parseFloat(currentData.startTime);
+      endTime = parseFloat(currentData.endTime);
+      intervalValue = currentData.interval;
+    }
 
     switch (fieldName) {
       case 'startTime':
@@ -419,7 +443,6 @@ const UploadModal = ({ onClose, onSuccess }) => {
         break;
 
       case 'interval':
-        const intervalValue = fieldName === 'interval' ? value : formData.interval;
         if (!intervalValue || !intervalValue.trim()) {
           errors.interval = 'Intervalo é obrigatório';
         } else {
@@ -465,11 +488,12 @@ const UploadModal = ({ onClose, onSuccess }) => {
         break;
     }
 
-    // Validate maximum images limit (100) for relevant fields
+    // Validate maximum images limit for relevant fields
     if (['interval', 'startTime', 'endTime', 'timeUnit'].includes(fieldName)) {
-      const totalImages = calculateTotalImages();
-      if (totalImages > 100) {
-        errors.maxImages = `Revise os parâmetros! Seriam capturadas ${totalImages} imagens. Limite máximo de 100 imagens por processamento`;
+      // Calculate total images using current values instead of memoized function
+      const totalImages = calculateTotalImagesDirectly(intervalValue, startTime, endTime, maxDuration);
+      if (totalImages > MAX_IMAGES) {
+        errors.maxImages = `Revise os parâmetros! Seriam capturadas ${totalImages} imagens. Limite máximo de ${MAX_IMAGES} imagens por processamento`;
       } else {
         delete errors.maxImages;
       }
@@ -478,13 +502,44 @@ const UploadModal = ({ onClose, onSuccess }) => {
     setValidationErrors(errors);
   };
 
+  // Helper function to calculate total images without memo dependency
+  const calculateTotalImagesDirectly = (intervalValue, startTime, endTime, maxDuration) => {
+    if (!intervalValue || !intervalValue.trim() || !videoDuration) return 0;
+
+    const intervals = intervalValue.split(',').map(i => parseFloat(i.trim())).filter(n => !isNaN(n));
+
+    if (intervals.length === 0) return 0;
+
+    if (intervals.length === 1) {
+      // Single interval - regular capture
+      const interval = intervals[0];
+      if (interval <= 0 || interval > maxDuration) return 0;
+
+      const start = parseFloat(startTime) || 0;
+      const end = parseFloat(endTime) || maxDuration;
+
+      if (start >= end) return 0;
+
+      const moments = [];
+      for (let t = start; t <= end; t += interval) {
+        moments.push(t);
+      }
+
+      return moments.length;
+    } else {
+      // Multiple intervals - specific moments
+      const validMoments = intervals.filter(m => m >= 0 && m <= maxDuration);
+      return validMoments.length;
+    }
+  };
+
   const handleTimeUnitChange = (e) => {
     const newUnit = e.target.value;
     const oldUnit = formData.timeUnit;
-    
+
     let newStartTime = formData.startTime;
     let newEndTime = formData.endTime;
-    
+
     // Convert times when switching units
     if (oldUnit === 'seconds' && newUnit === 'milliseconds') {
       newStartTime = formData.startTime * 1000;
@@ -493,21 +548,23 @@ const UploadModal = ({ onClose, onSuccess }) => {
       newStartTime = Math.floor(formData.startTime / 1000);
       newEndTime = Math.floor(formData.endTime / 1000);
     }
-    
-    setFormData(prev => ({
-      ...prev,
-      timeUnit: newUnit,
-      startTime: newStartTime,
-      endTime: newEndTime
-    }));
 
-    // Validate after changing time unit
-    setTimeout(() => validateField('timeUnit', newUnit), 0);
+    setFormData(prev => {
+      const newData = {
+        ...prev,
+        timeUnit: newUnit,
+        startTime: newStartTime,
+        endTime: newEndTime
+      };
+      // Validate after state update
+      setTimeout(() => validateField('timeUnit', newUnit, newData), 0);
+      return newData;
+    });
   };
 
   const getMaxDuration = () => {
-    return formData.timeUnit === 'milliseconds' ? 
-      Math.floor(videoDuration * 1000) : 
+    return formData.timeUnit === 'milliseconds' ?
+      Math.floor(videoDuration * 1000) :
       Math.floor(videoDuration);
   };
 
@@ -536,11 +593,11 @@ const UploadModal = ({ onClose, onSuccess }) => {
 
   const validateForm = async () => {
     const errors = {};
-    
+
     if (!file) {
       errors.file = 'Selecione um arquivo';
     }
-    
+
     const maxDuration = getMaxDuration();
     const startTime = parseFloat(formData.startTime);
     const endTime = parseFloat(formData.endTime);
@@ -551,14 +608,14 @@ const UploadModal = ({ onClose, onSuccess }) => {
     } else if (startTime >= endTime) {
       errors.startTime = 'Tempo inicial deve ser menor que o tempo final';
     }
-    
+
     // Validate endTime
     if (isNaN(endTime) || endTime > maxDuration) {
       errors.endTime = 'Tempo final deve ser menor ou igual à duração do vídeo';
     } else if (endTime <= startTime) {
       errors.endTime = 'Tempo final deve ser maior que o tempo inicial';
     }
-    
+
     // Validate interval
     if (!formData.interval.trim()) {
       errors.interval = 'Intervalo é obrigatório';
@@ -593,11 +650,11 @@ const UploadModal = ({ onClose, onSuccess }) => {
         }
       }
     }
-    
-    // Validate maximum images limit (100)
-    const totalImages = calculateTotalImages();
-    if (totalImages > 100) {
-      errors.maxImages = `Revise os parâmetros! Seriam capturadas ${totalImages} imagens. Limite máximo de 100 imagens por processamento`;
+
+    // Validate maximum images limit
+    const totalImages = calculateTotalImagesDirectly(formData.interval, startTime, endTime, maxDuration);
+    if (totalImages > MAX_IMAGES) {
+      errors.maxImages = `Revise os parâmetros! Seriam capturadas ${totalImages} imagens. Limite máximo de ${MAX_IMAGES} imagens por processamento`;
     }
 
     setValidationErrors(errors);
@@ -618,12 +675,12 @@ const UploadModal = ({ onClose, onSuccess }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    
+
     const isValid = await validateForm();
     if (!isValid) {
       return;
     }
-    
+
     // Check if we have upload info
     if (!uploadInfo || !uploadInfo.uploadUrl) {
       setError('Informações de upload não disponíveis. Tente selecionar o arquivo novamente.');
@@ -633,17 +690,17 @@ const UploadModal = ({ onClose, onSuccess }) => {
     setUploading(true);
     setUploadProgress(0);
     uploadAbortController.current = new AbortController();
-    
+
     try {
       // Step 1: Upload file to S3 using pre-obtained URL
       await uploadToS3(uploadInfo.uploadUrl, file, (progress) => {
         setUploadProgress(progress);
       }, uploadAbortController.current.signal);
-      
+
       // Step 2: Get current user ID
       const user = await getCurrentUser();
       const userId = user.userId;
-      
+
       // Map quality to API format
       const qualityMap = {
         'original': 'original',
@@ -652,10 +709,10 @@ const UploadModal = ({ onClose, onSuccess }) => {
         'medium': 'medium',
         'low': 'low'
       };
-      
+
       // Parse interval to array format
       const timeIntervalArray = formData.interval.split(',').map(i => i.trim());
-      
+
       // Format timestamp as ISO 8601 (2026-01-13T00:00:00Z) - without milliseconds
       const now = new Date();
       const timestamp = now.toISOString().split('.')[0] + 'Z';
@@ -682,13 +739,13 @@ const UploadModal = ({ onClose, onSuccess }) => {
         intervalTime: timeIntervalArray,
         maxRetries: parseInt(process.env.REACT_APP_MAX_RETRY || '3'),
         retries: 0,
-        resize: qualityMap[formData.quality] || 'medium',
+        resize: qualityMap[formData.resize],
         qualityOutputLevel: parseInt(formData.qualityOutputLevel),
         logs: [uploadLog]
       };
-      
+
       await videoAPI.uploadVideoMetadata(videoMetadata);
-      
+
       // Success!
       onSuccess();
     } catch (err) {
@@ -748,40 +805,106 @@ const UploadModal = ({ onClose, onSuccess }) => {
   };
 
   return (
-    <Dialog open onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>
+    <Dialog
+      open
+      onClose={() => {}}
+      disableEscapeKeyDown
+      maxWidth="md"
+      fullWidth
+    >
+      <DialogTitle sx={{
+        py: 0.5,
+        background: 'linear-gradient(135deg, #4c51bf 0%, #5a3d9a 100%)',
+        color: 'white'
+      }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Typography variant="h6">Upload Novo Vídeo</Typography>
+          <Typography variant="h6" sx={{ color: 'white', fontWeight: 'bold', my: 0 }}>Upload Novo Vídeo</Typography>
           <IconButton
             edge="end"
             color="inherit"
             onClick={uploading ? handleCancelUpload : onClose}
             aria-label="close"
+            sx={{ color: 'white' }}
           >
             <CloseIcon />
           </IconButton>
         </Box>
       </DialogTitle>
 
-      <DialogContent>
+      <DialogContent sx={{ py: 2, mt: 1 }}>
         {cancelMessage ? (
-          <Alert severity="info" sx={{ mb: 1 }}>
-            {cancelMessage}
-          </Alert>
+          <Box sx={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            minHeight: '200px',
+            flexDirection: 'column'
+          }}>
+            <Alert
+              severity="warning"
+              sx={{
+                width: 'auto',
+                background: 'linear-gradient(135deg, rgba(76, 81, 191, 0.1) 0%, rgba(90, 61, 154, 0.1) 100%)',
+                border: '2px solid #5a3d9a',
+                '& .MuiAlert-icon': {
+                  color: '#5a3d9a'
+                },
+                '& .MuiAlert-message': {
+                  color: '#5a3d9a',
+                  fontWeight: 'bold',
+                  fontSize: '1.1rem'
+                }
+              }}
+            >
+              {cancelMessage}
+            </Alert>
+          </Box>
         ) : (
           <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
+            {uploading ? (
+              // Mostrar apenas a barra de progresso quando estiver fazendo upload
+              <Box sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                alignItems: 'center',
+                minHeight: '300px',
+                gap: 2
+              }}>
+                <Typography variant="h6" sx={{ color: '#5a3d9a', fontWeight: 'bold' }}>
+                  Enviando vídeo...
+                </Typography>
+                <Box sx={{ width: '80%' }}>
+                  <LinearProgressWithLabel
+                    value={uploadProgress}
+                    sx={{
+                      backgroundColor: 'rgba(76, 81, 191, 0.15)',
+                      '& .MuiLinearProgress-bar': {
+                        background: 'linear-gradient(90deg, #3f46e6 0%, #7c3aed 100%)'
+                      },
+                      '& .MuiLinearProgress-dashed': {
+                        backgroundColor: 'rgba(76, 81, 191, 0.08)'
+                      }
+                    }}
+                  />
+                </Box>
+                <Typography variant="body2" sx={{ color: 'rgba(0, 0, 0, 0.6)' }}>
+                  Por favor, aguarde enquanto o arquivo está sendo enviado...
+                </Typography>
+              </Box>
+            ) : (
+              <>
             {/* Drag and Drop Area */}
             <Paper
               sx={{
-                p: 2,
-                mb: 2,
+                p: 0.5,
+                mb: 1,
                 border: '2px dashed',
                 borderColor: dragActive ? 'primary.main' : 'grey.300',
-                bgcolor: dragActive ? 'primary.50' : 'grey.50',
+                bgcolor: dragActive ? '#f3e5f5' : '#f3e5f5',
                 cursor: 'pointer',
                 textAlign: 'center',
-                transition: 'all 0.3s ease',
-                minHeight: 120
+                transition: 'all 0.3s ease'
               }}
               onDragEnter={handleDrag}
               onDragLeave={handleDrag}
@@ -798,34 +921,42 @@ const UploadModal = ({ onClose, onSuccess }) => {
               />
 
               {!file ? (
-                <Box sx={{ py: 1 }}>
-                  <CloudUploadIcon sx={{ fontSize: 36, color: 'grey.400', mb: 0.5 }} />
-                  <Typography variant="h6" sx={{ fontSize: '1.1rem', mb: 0.5 }}>
+                <Box>
+                  <CloudUploadIcon sx={{ fontSize: 48, color: 'rgba(0, 0, 0, 0.6)', mb: 1 }} />
+                  <Typography variant="h6" gutterBottom sx={{ color: 'rgba(0, 0, 0, 0.6)', fontWeight: 'bold' }}>
                     Arraste um vídeo aqui ou clique para selecionar
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{ color: 'rgba(0, 0, 0, 0.6)' }}>
                     Formatos aceitos: {ALLOWED_FORMATS.join(', ')} | Máx: 500MB
                   </Typography>
                 </Box>
               ) : preparingUpload ? (
-                <Box sx={{ py: 1 }}>
-                  <CircularProgress size={24} sx={{ mb: 0.5 }} />
-                  <Typography variant="h6" sx={{ fontSize: '1.1rem', mb: 0.5 }}>
+                <Box>
+                  <LinearProgress
+                    sx={{
+                      mb: 0.5,
+                      backgroundColor: 'rgba(76, 81, 191, 0.2)',
+                      '& .MuiLinearProgress-bar': {
+                        background: 'linear-gradient(135deg, #4c51bf 0%, #5a3d9a 100%)'
+                      }
+                    }}
+                  />
+                  <Typography variant="h6" gutterBottom sx={{ color: 'rgba(0, 0, 0, 0.6)', fontWeight: 'bold' }}>
                     Preparando upload...
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{ color: 'rgba(0, 0, 0, 0.6)' }}>
                     Obtendo URL de upload
                   </Typography>
                 </Box>
               ) : (
-                <Box sx={{ py: 1 }}>
-                  <Typography variant="h6" color="success.main" sx={{ fontSize: '1.1rem', mb: 0.5 }}>
+                <Box>
+                  <Typography variant="h6" color="success.main" gutterBottom sx={{ color: 'rgba(0, 0, 0, 0.6)', fontWeight: 'bold' }}>
                     ✓ {file.name}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{ color: 'rgba(0, 0, 0, 0.6)' }}>
                     {(file.size / (1024 * 1024)).toFixed(2)} MB
                     {uploadInfo && uploadInfo.expiresIn && (
-                      <span style={{ marginLeft: '8px', color: 'primary.main' }}>
+                      <span style={{ marginLeft: '8px', color: '#4c51bf', fontWeight: 'bold' }}>
                         • Link expira em {uploadInfo.expiresIn}
                       </span>
                     )}
@@ -835,7 +966,7 @@ const UploadModal = ({ onClose, onSuccess }) => {
             </Paper>
 
             {validationErrors.file && (
-              <Alert severity="error" sx={{ mb: 1, py: 0.5 }}>
+              <Alert severity="error" sx={{ mb: 2 }}>
                 {validationErrors.file}
               </Alert>
             )}
@@ -843,56 +974,59 @@ const UploadModal = ({ onClose, onSuccess }) => {
             {file && (
               <Box>
                 {/* Non-editable Properties */}
-                <Typography variant="h6" gutterBottom sx={{ mt: 2, fontSize: '1.125rem', mb: 1 }}>
+                <Typography variant="subtitle1" gutterBottom sx={{ mt: 1, color: 'rgba(0, 0, 0, 0.6)', fontWeight: 'bold', textAlign: 'center' }}>
                   Propriedades do Arquivo
                 </Typography>
-                <Grid container spacing={1} sx={{ mb: 2 }}>
+                <Grid container spacing={2} sx={{ mb: 2, justifyContent: 'center' }}>
                   <Grid item xs={12} sm={4}>
-                    <TextField
-                      label="ID do Vídeo"
-                      value={videoId}
-                      fullWidth
-                      InputProps={{ readOnly: true }}
-                      variant="outlined"
-                      size="small"
-                    />
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Typography variant="caption" sx={{ color: 'rgba(0, 0, 0, 0.6)' }}>
+                        ID do Vídeo
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: 'rgba(0, 0, 0, 0.6)', fontWeight: 'bold' }}>
+                        {videoId}
+                      </Typography>
+                    </Box>
                   </Grid>
                   <Grid item xs={12} sm={4}>
-                    <TextField
-                      label="Arquivo"
-                      value={`${formData.fileName}${videoExtension ? `.${videoExtension}` : ''}`}
-                      fullWidth
-                      InputProps={{ readOnly: true }}
-                      variant="outlined"
-                      size="small"
-                    />
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Typography variant="caption" sx={{ color: 'rgba(0, 0, 0, 0.6)' }}>
+                        Nome do Arquivo
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: 'rgba(0, 0, 0, 0.6)', fontWeight: 'bold' }}>
+                        {`${formData.fileName}.${videoExtension}`}
+                      </Typography>
+                    </Box>
                   </Grid>
                   <Grid item xs={12} sm={4}>
-                    <TextField
-                      label="Duração"
-                      value={
-                        formData.timeUnit === 'milliseconds'
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Typography variant="caption" sx={{ color: 'rgba(0, 0, 0, 0.6)' }}>
+                        Duração
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: 'rgba(0, 0, 0, 0.6)', fontWeight: 'bold' }}>
+                        {formData.timeUnit === 'milliseconds'
                           ? `${Math.floor(videoDuration * 1000)} ms`
-                          : `${Math.floor(videoDuration)} s`
-                      }
-                      fullWidth
-                      InputProps={{ readOnly: true }}
-                      variant="outlined"
-                      size="small"
-                    />
+                          : `${Math.floor(videoDuration)} s`}
+                      </Typography>
+                    </Box>
                   </Grid>
                 </Grid>
 
                 {/* Editable Properties */}
-                <Typography variant="h6" gutterBottom sx={{ fontSize: '1.125rem', mb: 1 }}>
+                <Typography variant="subtitle1" gutterBottom sx={{ color: 'rgba(0, 0, 0, 0.6)', fontWeight: 'bold', mb: 1 }}>
                   Configurações de Processamento
                 </Typography>
 
-                {/* First Row: Tamanho and Qualidade */}
-                <Grid container spacing={1} sx={{ mb: 2 }}>
-                  <Grid item xs={12} sm={6}>
+                {/* First Row: Tamanho (25%) and Qualidade (75%) */}
+                <Box sx={{ display: 'flex', gap: 2, mb: 2, width: '100%', alignItems: 'center' }}>
+                  <Box sx={{ width: '25%', minWidth: 0 }}>
                     <FormControl fullWidth variant="outlined" size="small">
-                      <InputLabel id="quality-label">Tamanho</InputLabel>
+                      <InputLabel id="quality-label" sx={{
+                        color: 'rgba(0, 0, 0, 0.6)',
+                        '&.Mui-focused': {
+                          color: '#5a3d9a'
+                        }
+                      }}>Tamanho</InputLabel>
                       <Select
                         labelId="quality-label"
                         id="quality"
@@ -900,58 +1034,94 @@ const UploadModal = ({ onClose, onSuccess }) => {
                         value={formData.quality}
                         onChange={handleInputChange}
                         label="Tamanho"
+                        variant="outlined"
+                        sx={{
+                          color: 'rgba(0, 0, 0, 0.6)',
+                          '& .MuiOutlinedInput-notchedOutline': {
+                            borderColor: 'rgba(0, 0, 0, 0.6)'
+                          },
+                          '&:hover .MuiOutlinedInput-notchedOutline': {
+                            borderColor: '#5a3d9a'
+                          },
+                          '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                            borderColor: '#5a3d9a'
+                          },
+                          '&.Mui-focused': {
+                            color: '#5a3d9a'
+                          }
+                        }}
                       >
                         <MenuItem value="original">Original</MenuItem>
                         <MenuItem value="ultra" disabled={!isQualityAvailable('ultra')}>
                           Ultra - 1080p {!isQualityAvailable('ultra') && '(Indisponível)'}
                         </MenuItem>
                         <MenuItem value="high" disabled={!isQualityAvailable('high')}>
-                          Alta - 720p {!isQualityAvailable('high') && '(Indisponível)'}
+                          Grande - 720p {!isQualityAvailable('high') && '(Indisponível)'}
                         </MenuItem>
                         <MenuItem value="medium" disabled={!isQualityAvailable('medium')}>
-                          Média - 480p {!isQualityAvailable('medium') && '(Indisponível)'}
+                          Médio - 480p {!isQualityAvailable('medium') && '(Indisponível)'}
                         </MenuItem>
-                        <MenuItem value="low">Baixa - 360p</MenuItem>
+                        <MenuItem value="low">Pequeno - 360p</MenuItem>
                       </Select>
                     </FormControl>
                     {videoResolution.height > 0 && (
-                      <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block', fontSize: '0.7rem' }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block', color: 'rgba(0, 0, 0, 0.6)' }}>
                         Resolução: {videoResolution.width}x{videoResolution.height}
                         {calculateResizePreview() && (
-                          <span style={{ marginLeft: '4px', color: 'primary.main' }}>
-                            → <strong>{calculateResizePreview().replace('Novo Tamanho: ', '')}</strong>
-                          </span>
+                          <div style={{ marginTop: '4px', color: 'rgba(0, 0, 0, 0.6)' }}>
+                            <strong>Novo tamanho: {calculateResizePreview().replace('Novo Tamanho: ', '')}</strong>
+                          </div>
                         )}
                       </Typography>
                     )}
-                  </Grid>
+                  </Box>
 
-                  <Grid item xs={12} sm={6}>
-                    <Typography variant="body2" gutterBottom sx={{ fontSize: '0.875rem' }}>
+                  <Box sx={{ width: '75%', minWidth: 0 }}>
+                    <Typography gutterBottom sx={{ color: 'rgba(0, 0, 0, 0.6)', fontWeight: 'bold', mb: 1 }}>
                       Qualidade: <strong>{formData.qualityOutputLevel}%</strong>
                     </Typography>
                     <Slider
                       value={formData.qualityOutputLevel}
                       onChange={(e, newValue) => handleInputChange({ target: { name: 'qualityOutputLevel', value: newValue } })}
                       aria-labelledby="quality-slider"
-                      min={1}
+                      min={10}
                       max={100}
                       valueLabelDisplay="auto"
                       marks
                       step={5}
-                      size="small"
+                      size="medium"
+                      sx={{
+                        width: '100%',
+                        '& .MuiSlider-rail': {
+                          background: 'linear-gradient(135deg, #4c51bf 0%, #5a3d9a 100%)',
+                          opacity: 0.3
+                        },
+                        '& .MuiSlider-track': {
+                          background: 'linear-gradient(135deg, #4c51bf 0%, #5a3d9a 100%)',
+                          border: 'none'
+                        },
+                        '& .MuiSlider-thumb': {
+                          backgroundColor: '#4c51bf',
+                          boxShadow: '0 0 0 8px rgba(76, 81, 191, 0.16)'
+                        }
+                      }}
                     />
-                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
-                      Qualidade de saída (1 = baixa, 100 = máxima)
+                    <Typography variant="caption" color="text.secondary" sx={{ color: 'rgba(0, 0, 0, 0.6)' }}>
+                      Qualidade de saída (10-25% - Baixa | 25-75% - Média | 75-100% - Alta)
                     </Typography>
-                  </Grid>
-                </Grid>
+                  </Box>
+                </Box>
 
-                {/* Second Row: Unidade de Tempo + Faixa de Captura */}
-                <Grid container spacing={1} sx={{ mb: 2 }}>
-                  <Grid item xs={12} sm={4}>
+                {/* Second Row: Unidade (25%) + Trecho de Captura (75%) */}
+                <Box sx={{ display: 'flex', gap: 2, mb: 2, width: '100%', alignItems: 'center' }}>
+                  <Box sx={{ width: '25%', minWidth: 0 }}>
                     <FormControl fullWidth variant="outlined" size="small">
-                      <InputLabel id="timeUnit-label">Unidade *</InputLabel>
+                      <InputLabel id="timeUnit-label" sx={{
+                        color: 'rgba(0, 0, 0, 0.6)',
+                        '&.Mui-focused': {
+                          color: '#5a3d9a'
+                        }
+                      }}>Unidade *</InputLabel>
                       <Select
                         labelId="timeUnit-label"
                         id="timeUnit"
@@ -959,129 +1129,239 @@ const UploadModal = ({ onClose, onSuccess }) => {
                         value={formData.timeUnit}
                         onChange={handleTimeUnitChange}
                         label="Unidade *"
+                        variant="outlined"
+                        sx={{
+                          color: 'rgba(0, 0, 0, 0.6)',
+                          '& .MuiOutlinedInput-notchedOutline': {
+                            borderColor: 'rgba(0, 0, 0, 0.6)'
+                          },
+                          '&:hover .MuiOutlinedInput-notchedOutline': {
+                            borderColor: '#5a3d9a'
+                          },
+                          '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                            borderColor: '#5a3d9a'
+                          },
+                          '&.Mui-focused': {
+                            color: '#5a3d9a'
+                          }
+                        }}
                       >
                         <MenuItem value="seconds">Segundos</MenuItem>
                         <MenuItem value="milliseconds">Milissegundos</MenuItem>
                       </Select>
                     </FormControl>
-                  </Grid>
+                  </Box>
 
-                  <Grid item xs={12} sm={8}>
-                    <Typography variant="body2" gutterBottom sx={{ fontSize: '0.875rem' }}>Faixa de Captura *</Typography>
-                    <Box sx={{ px: 1 }}>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                        <Typography variant="caption" sx={{ fontSize: '0.75rem' }}>
+                  <Box sx={{ width: '75%', minWidth: 0 }}>
+                    <Typography variant="body2" sx={{ color: 'rgba(0, 0, 0, 0.6)', fontWeight: 'bold', mb: 1 }}>Trecho de Captura *</Typography>
+                    <Box sx={{ width: '100%' }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                        <Typography variant="caption" sx={{ color: 'rgba(0, 0, 0, 0.6)' }}>
                           Início: <strong>{formData.startTime}</strong>
                         </Typography>
-                        <Typography variant="caption" sx={{ fontSize: '0.75rem' }}>
+                        <Typography variant="caption" sx={{ color: 'rgba(0, 0, 0, 0.6)' }}>
                           Fim: <strong>{formData.endTime}</strong>
                         </Typography>
                       </Box>
                       <Slider
                         value={[formData.startTime, formData.endTime]}
                         onChange={(e, newValue) => {
-                          handleInputChange({ target: { name: 'startTime', value: newValue[0].toString() } });
-                          handleInputChange({ target: { name: 'endTime', value: newValue[1].toString() } });
+                          let [start, end] = newValue;
+
+                          // Garantir que a distância mínima seja sempre 1
+                          if (end - start < 1) {
+                            // Determinar qual marcador foi movido
+                            const startMoved = start !== formData.startTime;
+                            const endMoved = end !== formData.endTime;
+
+                            if (startMoved) {
+                              // Se moveu o início, ajustar o fim
+                              end = Math.min(start + 1, getMaxDuration());
+                              // Se o fim chegou ao máximo, ajustar o início
+                              if (end === getMaxDuration() && end - start < 1) {
+                                start = end - 1;
+                              }
+                            } else if (endMoved) {
+                              // Se moveu o fim, ajustar o início
+                              start = Math.max(end - 1, 0);
+                              // Se o início chegou ao mínimo, ajustar o fim
+                              if (start === 0 && end - start < 1) {
+                                end = start + 1;
+                              }
+                            }
+                          }
+
+                          // Garantir que nunca fiquem iguais
+                          if (end === start) {
+                            end = Math.min(start + 1, getMaxDuration());
+                          }
+
+                          handleInputChange({ target: { name: 'startTime', value: start.toString() } });
+                          handleInputChange({ target: { name: 'endTime', value: end.toString() } });
                         }}
                         aria-labelledby="time-range-slider"
                         min={0}
                         max={getMaxDuration()}
                         valueLabelDisplay="auto"
                         disabled={isMultipleIntervals(formData.interval)}
-                        size="small"
+                        disableSwap
+                        size="medium"
+                        sx={{
+                          width: '100%',
+                          '& .MuiSlider-rail': {
+                            background: 'linear-gradient(135deg, #4c51bf 0%, #5a3d9a 100%)',
+                            opacity: 0.3
+                          },
+                          '& .MuiSlider-track': {
+                            background: 'linear-gradient(135deg, #4c51bf 0%, #5a3d9a 100%)',
+                            border: 'none'
+                          },
+                          '& .MuiSlider-thumb': {
+                            backgroundColor: '#4c51bf',
+                            boxShadow: '0 0 0 8px rgba(76, 81, 191, 0.16)'
+                          }
+                        }}
                       />
                       {isMultipleIntervals(formData.interval) && (
-                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ color: 'rgba(0, 0, 0, 0.6)', mt: 0.5, display: 'block' }}>
                           Bloqueado: múltiplos intervalos definidos
                         </Typography>
                       )}
-                      {(validationErrors.startTime || validationErrors.endTime) && (
-                        <Alert severity="error" sx={{ mt: 0.5, py: 0.25, fontSize: '0.75rem' }}>
-                          {validationErrors.startTime || validationErrors.endTime}
-                        </Alert>
-                      )}
                     </Box>
-                  </Grid>
-                </Grid>
+                  </Box>
+                </Box>
 
                 {/* Third Row: Intervalo */}
-                <Box sx={{ mb: 2 }}>
+                <Box sx={{ mb: 0 }}>
                   <TextField
                     fullWidth
+                    size="small"
                     label="Intervalo *"
                     id="interval"
                     name="interval"
                     value={formData.interval}
                     onChange={handleInputChange}
-                    onBlur={handleBlur}
                     error={!!validationErrors.interval}
                     helperText={
-                      <>
-                        <Typography variant="caption" sx={{ fontSize: '0.7rem', lineHeight: 1.2 }}>
-                          Preencher com único valor captura recorrente entre tempo inicial e tempo final. Ex: 10<br />
-                          Preencher com valores separados por vírgula para capturar momentos específicos. Ex: 10,21,22,33,55
-                        </Typography>
-                      </>
+                      validationErrors.interval ? (
+                        validationErrors.interval
+                      ) : (
+                        <>
+                          Único valor: captura recorrente (Ex: 10). Valores separados por vírgula: momentos específicos (Ex: 10,21,33)
+                        </>
+                      )
                     }
                     placeholder="Ex: 5 ou 10,20,30,40"
                     variant="outlined"
-                    size="small"
+                    slotProps={{
+                      inputLabel: {
+                        sx: {
+                          color: 'rgba(0, 0, 0, 0.6)',
+                          '&.Mui-focused': {
+                            color: '#5a3d9a'
+                          }
+                        }
+                      }
+                    }}
+                    sx={{
+                      '& .MuiInputBase-input::placeholder': {
+                        color: 'rgba(0, 0, 0, 0.6)',
+                        opacity: 0.6
+                      },
+                      '& .MuiInputBase-input': {
+                        color: 'rgba(0, 0, 0, 0.6)'
+                      },
+                      '& .MuiOutlinedInput-root': {
+                        '&:hover fieldset': {
+                          borderColor: '#5a3d9a'
+                        },
+                        '&.Mui-focused fieldset': {
+                          borderColor: '#5a3d9a'
+                        },
+                        '&.Mui-focused input': {
+                          color: '#5a3d9a'
+                        }
+                      }
+                    }}
                   />
-                  {validationErrors.interval && (
-                    <Alert severity="error" sx={{ mt: 0.5, py: 0.25, fontSize: '0.75rem' }}>
-                      {validationErrors.interval}
-                    </Alert>
-                  )}
-                  {validationErrors.maxImages && (
-                    <Alert severity="error" sx={{ mt: 0.5, py: 0.25, fontSize: '0.75rem', fontWeight: 'bold' }}>
-                      {validationErrors.maxImages}
-                    </Alert>
-                  )}
-                  {calculatePreview() && !validationErrors.interval && (
-                    <Alert severity="success" sx={{ mt: 0.5, py: 0.25, fontSize: '0.75rem' }}>
-                      {calculatePreview()}
-                    </Alert>
-                  )}
                 </Box>
               </Box>
             )}
 
             {error && (
-              <Alert severity="error" sx={{ mb: 1, py: 0.5, fontSize: '0.875rem' }}>
+              <Alert severity="error" sx={{ mb: 2 }}>
                 {error}
               </Alert>
             )}
-
-            {uploading && (
-              <Box sx={{ mb: 1 }}>
-                <LinearProgress variant="determinate" value={uploadProgress} sx={{ height: 6 }} />
-                <Typography variant="body2" sx={{ mt: 0.5, fontSize: '0.875rem' }}>
-                  Enviando: {uploadProgress}%
-                </Typography>
-              </Box>
+            </>
             )}
           </Box>
         )}
       </DialogContent>
 
-      <DialogActions>
-        <Button
-          variant="outlined"
-          color="secondary"
-          onClick={handleCancelUpload}
-          disabled={!uploading}
-        >
-          Cancelar
-        </Button>
-        <Button
-          type="submit"
-          variant="contained"
-          color="primary"
-          disabled={!isFormValid() || uploading}
-          onClick={handleSubmit}
-        >
-          {uploading ? 'Enviando...' : 'Enviar Vídeo'}
-        </Button>
+      <DialogActions sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 1 }}>
+        <Box sx={{ flex: 1 }}>
+          {!uploading && validationErrors.interval && (
+            <Alert severity="error" sx={{ m: 0, fontSize: '0.75rem', '& .MuiAlert-message': { fontSize: '0.75rem' } }}>
+              {validationErrors.interval}
+            </Alert>
+          )}
+          {!uploading && validationErrors.maxImages && (
+            <Alert severity="error" sx={{ m: 0, fontWeight: 'bold', fontSize: '0.75rem', '& .MuiAlert-message': { fontSize: '0.75rem' } }}>
+              {validationErrors.maxImages}
+            </Alert>
+          )}
+          {!uploading && validationErrors.startTime && (
+            <Alert severity="error" sx={{ m: 0, fontSize: '0.75rem', '& .MuiAlert-message': { fontSize: '0.75rem' } }}>
+              {validationErrors.startTime}
+            </Alert>
+          )}
+          {!uploading && validationErrors.endTime && (
+            <Alert severity="error" sx={{ m: 0, fontSize: '0.75rem', '& .MuiAlert-message': { fontSize: '0.75rem' } }}>
+              {validationErrors.endTime}
+            </Alert>
+          )}
+          {!uploading && calculatePreview() && !validationErrors.interval && !validationErrors.maxImages && (
+            <Alert severity="success" sx={{ m: 0, fontSize: '0.75rem', '& .MuiAlert-message': { fontSize: '0.75rem' } }}>
+              {calculatePreview()}
+            </Alert>
+          )}
+        </Box>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button
+            variant="outlined"
+            color="secondary"
+            onClick={handleCancelUpload}
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="submit"
+            variant="contained"
+            disabled={!isFormValid() || uploading}
+            onClick={handleSubmit}
+            startIcon={<CloudUploadIcon />}
+            sx={{
+              background: 'linear-gradient(135deg, #4c51bf 0%, #5a3d9a 100%)',
+              color: 'white',
+              fontWeight: 600,
+              px: 3,
+              py: 1,
+              boxShadow: '0 4px 15px rgba(76, 81, 191, 0.3)',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 6px 20px rgba(102, 126, 234, 0.4)',
+              },
+              '&:disabled': {
+                background: 'linear-gradient(135deg, #4c51bf 0%, #5a3d9a 100%)',
+                opacity: 0.6,
+                color: 'white'
+              }
+            }}
+          >
+            {uploading ? 'Enviando...' : 'Enviar Vídeo'}
+          </Button>
+        </Box>
       </DialogActions>
     </Dialog>
   );

@@ -85,7 +85,7 @@ describe('notificationService', () => {
           limit: 20,
           sortDirection: 'DESC'
         },
-        authMode: 'iam'
+        authMode: 'userPool'
       });
       expect(result).toEqual(mockNotifications);
     });
@@ -112,7 +112,7 @@ describe('notificationService', () => {
           sortDirection: 'DESC',
           isRead: false
         },
-        authMode: 'iam'
+        authMode: 'userPool'
       });
     });
 
@@ -193,7 +193,7 @@ describe('notificationService', () => {
       expect(mockGraphqlFn).toHaveBeenCalledWith({
         query: onCreateNotification,
         variables: { userId: 'test-user-id' },
-        authMode: 'iam'
+        authMode: 'userPool'
       });
       expect(mockSubscribe).toHaveBeenCalled();
       expect(subscription).toBe(mockSubscription);
@@ -290,7 +290,7 @@ describe('notificationService', () => {
       expect(mockGraphqlFn).toHaveBeenCalledWith({
         query: onUpdateNotification,
         variables: { id: 'notification-123' },
-        authMode: 'iam'
+        authMode: 'userPool'
       });
       expect(mockSubscribe).toHaveBeenCalled();
       expect(subscription).toBe(mockSubscription);

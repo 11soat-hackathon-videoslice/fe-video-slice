@@ -22,7 +22,6 @@ import {
   Info as InfoIcon,
   Warning as WarningIcon
 } from '@mui/icons-material';
-import './NotificationIcon.css';
 
 const NotificationIcon = ({ onNewNotification, onNotificationRead }) => {
   const [notifications, setNotifications] = useState([]);

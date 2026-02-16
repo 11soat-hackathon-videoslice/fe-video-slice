@@ -337,12 +337,12 @@ describe('API Service', () => {
         unitTime: 's',
         startTime: 0,
         endTime: 120,
-        timeInterval: ['10', '20'],
+        intervalTime: ['10', '20'],
         quality: 'high',
-        maxRetry: 3,
+        maxRetries: 3,
         retries: 0,
         logs: [],
-        extensionFile: 'mp4'
+        fileExtension: 'mp4'
       };
 
       axios.get.mockResolvedValue({
@@ -362,10 +362,10 @@ describe('API Service', () => {
         timeUnit: 's',
         startTime: 0,
         endTime: 120,
-        quality: 'high',
+        resize: 'high',
         maxRetries: 3,
         retries: 0,
-        extensionFile: 'mp4'
+        fileExtension: 'mp4'
       });
     });
 

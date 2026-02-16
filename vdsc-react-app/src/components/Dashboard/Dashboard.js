@@ -11,7 +11,6 @@ import {
   Box,
   Typography,
   Button,
-  Container,
   Alert,
   IconButton
 } from '@mui/material';
@@ -114,7 +113,7 @@ const Dashboard = ({ onSignOut }) => {
           boxShadow: '0 2px 10px rgba(0, 0, 0, 0.3)'
         }}
       >
-        <Container maxWidth="xl">
+        <Box sx={{ maxWidth: '80%', mx: 'auto', width: '100%' }}>
           <Toolbar disableGutters sx={{ py: 1 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexGrow: 1 }}>
               <img 
@@ -155,10 +154,10 @@ const Dashboard = ({ onSignOut }) => {
               </Button>
             </Box>
           </Toolbar>
-        </Container>
+        </Box>
       </AppBar>
 
-      <Container maxWidth="xl" sx={{ py: 4 }}>
+      <Box sx={{ maxWidth: '80%', mx: 'auto', py: 4 }}>
         <Box sx={{ display: 'flex', gap: 1.5, mb: 3 }}>
           <Button
             variant="contained"
@@ -171,6 +170,7 @@ const Dashboard = ({ onSignOut }) => {
               px: 3,
               py: 1.5,
               boxShadow: '0 4px 15px rgba(76, 81, 191, 0.3)',
+
               '&:hover': {
                 transform: 'translateY(-2px)',
                 boxShadow: '0 6px 20px rgba(102, 126, 234, 0.4)',
@@ -214,7 +214,7 @@ const Dashboard = ({ onSignOut }) => {
           onDownload={handleDownload}
           onViewLogs={handleViewLogs}
         />
-      </Container>
+      </Box>
 
       {showUploadModal && (
         <UploadModal 

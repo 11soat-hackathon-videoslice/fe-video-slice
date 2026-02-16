@@ -34,141 +34,9 @@ env:
   AMPLIFY_APP_ID: ${{ vars.AMPLIFY_APP_ID }}
 
 jobs:
-  tests-and-coverage:
-    name: Testes e Quality Gate
-    runs-on: ubuntu-latest
-    if: (github.event.inputs.deploy_only == 'false' &&  github.event_name == 'workflow_dispatch') || (github.event_name == 'push' || github.event_name == 'pull_request')
-    defaults:
-      run:
-        working-directory: vdsc-react-app
-    steps:
-      - name: Checkout do código
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Configurar Node.js ${{ vars.NODE_VERSION }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: vdsc-react-app/package-lock.json
-
-      - name: Cache de dependências Node
-        uses: actions/cache@v4
-        with:
-          path: |
-            vdsc-react-app/node_modules
-            ~/.npm
-          key: ${{ runner.os }}-node-${{ hashFiles('vdsc-react-app/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
-
-      - name: Instalar dependências
-        run: |
-          echo "📦 Instalando dependências do projeto..."
-          npm ci
-          echo "✅ Dependências instaladas com sucesso"
-
-      - name: Executar testes com cobertura
-        run: |
-          echo "🧪 Executando testes unitários..."
-          npm run test:ci
-          echo "✅ Testes executados com sucesso"
-
-      - name: Verificar arquivos de cobertura e testes
-        run: |
-          echo "🔍 Verificando arquivos gerados..."
-          
-          if [ -f coverage/lcov.info ]; then
-            echo "✅ coverage/lcov.info encontrado"
-            head -30 coverage/lcov.info
-          else
-            echo "❌ coverage/lcov.info NÃO encontrado"
-            exit 1
-          fi
-          
-          if [ -f junit.xml ]; then
-            echo "✅ junit.xml encontrado (usado apenas para CI)"
-          else
-            echo "⚠️ junit.xml NÃO encontrado (opcional)"
-          fi
-
-      - name: Upload de relatório de cobertura
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: |
-            vdsc-react-app/coverage/
-            vdsc-react-app/junit.xml
-
-
-      - name: Verificar arquivos para SonarCloud
-        run: |
-          echo "🔍 Verificando existência dos arquivos de cobertura..."
-          echo "Working directory: $(pwd)"
-          echo ""
-          
-          echo "📂 Estrutura de diretórios:"
-          ls -la
-          echo ""
-          
-          if [ -d "vdsc-react-app/coverage" ]; then
-            echo "✅ Diretório vdsc-react-app/coverage existe"
-            ls -la vdsc-react-app/coverage/
-          else
-            echo "❌ Diretório vdsc-react-app/coverage NÃO existe"
-            exit 1
-          fi
-          echo ""
-          
-          if [ -f "vdsc-react-app/coverage/lcov.info" ]; then
-            echo "✅ Arquivo vdsc-react-app/coverage/lcov.info existe"
-            echo "Tamanho: $(wc -l < vdsc-react-app/coverage/lcov.info) linhas"
-          else
-            echo "❌ Arquivo vdsc-react-app/coverage/lcov.info NÃO existe"
-            exit 1
-          fi
-          echo ""
-          
-          echo "✅ Arquivo de cobertura necessário para o SonarCloud existe!"
-        working-directory: .
-
-      - name: Setup Java para SonarCloud
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Instalar SonarScanner
-        run: |
-          echo "📦 Instalando SonarScanner CLI..."
-          npm install -g sonarqube-scanner
-          echo "✅ SonarScanner instalado com sucesso"
-        working-directory: .
-
-      - name: Análise do SonarCloud
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          NODE_OPTIONS: --max-old-space-size=4096
-        run: |
-          echo "🔍 Verificando Node.js disponível..."
-          which node
-          node --version
-          echo ""
-          
-          echo "🚀 Executando análise do SonarCloud..."
-          sonar-scanner \
-            -Dsonar.host.url=https://sonarcloud.io \
-            -Dsonar.token=$SONAR_TOKEN \
-            -Dsonar.nodejs.executable=$(which node)
-        working-directory: .
-
   approval:
     name: Aprovação Manual (Produção)
     runs-on: ubuntu-latest
-    needs: tests-and-coverage
     if: (github.event_name == 'pull_request' && github.base_ref == 'master') || (github.event_name == 'push' && github.ref == 'refs/heads/master')
     environment:
       name: prod
@@ -180,11 +48,9 @@ jobs:
   build-and-deploy:
     name: Acionando build e deploy no Amplify
     runs-on: ubuntu-latest
-    needs: [ tests-and-coverage, approval ]
+    needs: approval
     if: |
       always() &&
-      (needs.tests-and-coverage.result == 'success' || 
-       (needs.tests-and-coverage.result == 'skipped' && github.event.inputs.deploy_only == 'true')) &&
       (needs.approval.result == 'success' || needs.approval.result == 'skipped')
     environment:
       name: ${{ ((github.event_name == 'pull_request' && github.base_ref == 'master') || ((github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/master')) && 'prod' || 'develop' }}

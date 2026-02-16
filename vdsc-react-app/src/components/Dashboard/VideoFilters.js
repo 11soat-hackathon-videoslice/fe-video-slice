@@ -15,7 +15,6 @@ import {
   Search as SearchIcon,
   Clear as ClearIcon
 } from '@mui/icons-material';
-import './Dashboard.css';
 
 const VideoFilters = ({ filters, onFilterChange, onClearFilters }) => {
   const handleInputChange = (field, value) => {
@@ -33,7 +32,7 @@ const VideoFilters = ({ filters, onFilterChange, onClearFilters }) => {
 
   return (
     <Paper sx={{ p: 2, mb: 2, bgcolor: 'grey.50' }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+      <Box sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
         <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1, fontSize: '1.125rem' }}>
           <SearchIcon />
           Filtros de Pesquisa
