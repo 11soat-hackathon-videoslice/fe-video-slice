@@ -48,16 +48,14 @@ LinearProgressWithLabel.propTypes = {
 
 // Generate short UUID (12 characters)
 const generateShortUUID = () => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  // Gera um short hash com Base 62 (12 caracteres)
+  // Base 62: 0-9 (10) + a-z (26) + A-Z (26) = 62 caracteres possíveis (sem caracteres especiais)
+  const chars = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
   let result = '';
-  const timestamp = Date.now().toString(36);
-  result += timestamp;
-
-  while (result.length < 12) {
+  for (let i = 0; i < 12; i++) {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
   }
-
-  return result.substring(0, 12);
+  return result;
 };
 
 const UploadModal = ({ onClose, onSuccess }) => {

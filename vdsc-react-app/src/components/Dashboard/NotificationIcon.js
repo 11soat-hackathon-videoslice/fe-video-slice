@@ -4,8 +4,8 @@ import {
     Badge,
     Box,
     Button,
+    Chip,
     CircularProgress,
-    Divider,
     IconButton,
     ListItemIcon,
     ListItemText,
@@ -191,12 +191,12 @@ const NotificationIcon = ({ onNewNotification, onNotificationRead }) => {
     }
   };
 
-  const handleMarkAllAsRead = async () => {
+  const handleDeleteAllNotifications = async () => {
     if (notifications.length === 0) return;
 
     try {
-      console.log('NotificationIcon: Marcando todas as notificações como lidas...');
-      // Chama markAsRead para cada notificação
+      console.log('NotificationIcon: Apagando todas as notificações...');
+      // Chama markAsRead para cada notificação (que as remove)
       const promises = notifications.map(notification =>
         notificationService.markAsRead(notification.id, notification.timestamp)
       );
@@ -207,9 +207,9 @@ const NotificationIcon = ({ onNewNotification, onNotificationRead }) => {
       setNotifications([]);
       updateUnreadCount([]);
 
-      console.log('NotificationIcon: Todas as notificações foram marcadas como lidas');
+      console.log('NotificationIcon: Todas as notificações foram apagadas');
     } catch (error) {
-      console.error('Erro ao marcar todas como lidas:', error);
+      console.error('Erro ao apagar todas as notificações:', error);
     }
   };
 
@@ -247,6 +247,19 @@ const NotificationIcon = ({ onNewNotification, onNotificationRead }) => {
     }
   };
 
+  const getStatusStyle = (status) => {
+    const statusStyles = {
+      'uploaded': { bg: '#CE93D8', color: '#4A148C', label: 'Carregado' },
+      'processing': { bg: '#CE93D8', color: '#4A148C', label: 'Processando' },
+      'finished': { bg: '#A5D6A7', color: '#1B5E20', label: 'Concluído' },
+      'failed': { bg: '#EF9A9A', color: '#B71C1C', label: 'Falhou' },
+      'retrying': { bg: '#FFF176', color: '#E65100', label: 'Retentativa Agendada' }
+    };
+
+    const style = statusStyles[status?.toLowerCase()] || { bg: '#F5F5F5', color: '#424242', label: status };
+    return style;
+  };
+
   return (
     <Box>
       <IconButton
@@ -263,22 +276,50 @@ const NotificationIcon = ({ onNewNotification, onNotificationRead }) => {
         anchorEl={anchorEl}
         open={showDropdown}
         onClose={handleCloseDropdown}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'right'
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'right'
+        }}
         PaperProps={{
-          sx: { width: 350, maxHeight: 400 }
+          sx: {
+            width: 450,
+            maxHeight: 450,
+            m: 0,
+            p: 0,
+            '& .MuiList-root': {
+              p: 0
+            }
+          }
         }}
       >
-        <Box sx={{ p: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="h6" sx={{ fontSize: '1.125rem' }}>Notificações</Typography>
+        <Box sx={{ p: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, #4c51bf 0%, #5a3d9a 100%)' }}>
+          <Typography variant="h6" sx={{ fontSize: '0.95rem', fontWeight: 600, color: 'white' }}>Notificações</Typography>
           <Box>
             {notifications.length > 0 && (
               <>
                 <Button
-                  onClick={handleMarkAllAsRead}
+                  onClick={handleDeleteAllNotifications}
                   size="small"
                   startIcon={<CheckCircleIcon />}
-                  sx={{ mr: 0.5, fontSize: '0.75rem', py: 0.25, px: 1 }}
+                  sx={{
+                    mr: 0.5,
+                    fontSize: '0.7rem',
+                    py: 0.25,
+                    px: 1,
+                    bgcolor: '#fff',
+                    color: '#4c51bf',
+                    fontWeight: 600,
+                    '&:hover': {
+                      bgcolor: '#f0f0f0',
+                      color: '#5a3d9a'
+                    }
+                  }}
                 >
-                  Lido
+                  Apagar Todas
                 </Button>
                 <IconButton
                   onClick={loadNotifications}
@@ -286,14 +327,13 @@ const NotificationIcon = ({ onNewNotification, onNotificationRead }) => {
                   size="small"
                   sx={{ p: 0.5 }}
                 >
-                  {loading ? <CircularProgress size={16} /> : <NotificationsNoneIcon fontSize="small" />}
+                  {loading ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : <NotificationsNoneIcon fontSize="small" sx={{ color: '#fff' }} />}
                 </IconButton>
               </>
             )}
           </Box>
         </Box>
 
-        <Divider />
 
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 3 }}>
@@ -311,7 +351,18 @@ const NotificationIcon = ({ onNewNotification, onNotificationRead }) => {
             <MenuItem
               key={notification.id}
               onClick={() => handleMarkAsRead(notification)}
-              sx={{ py: 0.75, px: 1.5 }}
+              sx={{
+                py: 1,
+                px: 1.5,
+                bgcolor: '#f9fafb',
+                borderBottom: '1px solid #e5e7eb',
+                borderLeft: '4px solid transparent',
+                transition: 'all 0.2s ease',
+                '&:hover': {
+                  bgcolor: '#f3f4f6',
+                  borderLeft: '4px solid #4c51bf'
+                }
+              }}
             >
               <ListItemIcon sx={{ minWidth: 32 }}>
                 {notification.type === 'success' && <CheckCircleIcon color="success" fontSize="small" />}
@@ -319,12 +370,29 @@ const NotificationIcon = ({ onNewNotification, onNotificationRead }) => {
                 {notification.type === 'info' && <InfoIcon color="info" fontSize="small" />}
                 {notification.type === 'warning' && <WarningIcon color="warning" fontSize="small" />}
               </ListItemIcon>
-              <ListItemText
-                primary={notification.message}
-                secondary={formatTimestamp(notification.timestamp)}
-                primaryTypographyProps={{ variant: 'body2', fontSize: '0.875rem' }}
-                secondaryTypographyProps={{ variant: 'caption', fontSize: '0.7rem' }}
-              />
+              <Box sx={{ flex: 1 }}>
+                <ListItemText
+                  primary={notification.message}
+                  secondary={formatTimestamp(notification.timestamp)}
+                  primaryTypographyProps={{ variant: 'body2', fontSize: '0.875rem' }}
+                  secondaryTypographyProps={{ variant: 'caption', fontSize: '0.7rem' }}
+                />
+              </Box>
+              {notification.status && (
+                <Chip
+                  label={getStatusStyle(notification.status).label}
+                  size="small"
+                  sx={{
+                    ml: 1,
+                    height: 20,
+                    fontSize: '0.65rem',
+                    fontWeight: 600,
+                    bgcolor: getStatusStyle(notification.status).bg,
+                    color: getStatusStyle(notification.status).color,
+                    border: 'none'
+                  }}
+                />
+              )}
             </MenuItem>
           ))
         )}

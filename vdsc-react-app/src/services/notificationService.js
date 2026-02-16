@@ -25,10 +25,11 @@ export const getNotificationsByUser = /* GraphQL */ `
         timestamp
         id
         message
+        status
         isRead
         videoId
         fileName
-        extentisonFile
+        fileExtension
       }
       nextToken
     }
@@ -43,10 +44,11 @@ export const markAsRead = /* GraphQL */ `
       timestamp
       id
       message
+      status
       isRead
       videoId
       fileName
-      extentisonFile
+      fileExtension
     }
   }
 `;
@@ -59,10 +61,11 @@ export const onCreateNotification = /* GraphQL */ `
       timestamp
       id
       message
+      status
       isRead
       videoId
       fileName
-      extentisonFile
+      fileExtension
     }
   }
 `;
@@ -75,10 +78,11 @@ export const onUpdateNotification = /* GraphQL */ `
       timestamp
       id
       message
+      status
       isRead
       videoId
       fileName
-      extentisonFile
+      fileExtension
     }
   }
 `;

@@ -4,6 +4,7 @@ import {videoAPI} from '../../services/api';
 import VideoTable from './VideoTable';
 import UploadModal from './UploadModal';
 import LogsModal from './LogsModal';
+import DownloadErrorModal from './DownloadErrorModal';
 import NotificationIcon from './NotificationIcon';
 import {Alert, AppBar, Box, Button, Toolbar, Typography} from '@mui/material';
 import {CloudUpload as CloudUploadIcon, Logout as LogoutIcon, Refresh as RefreshIcon} from '@mui/icons-material';
@@ -16,6 +17,8 @@ const Dashboard = ({ onSignOut }) => {
   const [userName, setUserName] = useState('');
   const [showLogsModal, setShowLogsModal] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState(null);
+  const [downloadError, setDownloadError] = useState(null);
+  const [showDownloadErrorModal, setShowDownloadErrorModal] = useState(false);
 
   useEffect(() => {
     loadUserData();
@@ -70,7 +73,9 @@ const Dashboard = ({ onSignOut }) => {
       await videoAPI.downloadVideo(downloadFileName);
     } catch (err) {
       console.error('Error downloading video:', err);
-      alert('Erro ao baixar vídeo. Tente novamente.');
+      setDownloadError(err);
+      setSelectedVideo(video);
+      setShowDownloadErrorModal(true);
     }
   };
 
@@ -90,6 +95,13 @@ const Dashboard = ({ onSignOut }) => {
   const handleNotificationRead = (notification) => {
     console.log('Notificação marcada como lida:', notification);
     // Pode ser usado para atualizar estado específico se necessário
+  };
+
+
+  const handleCloseDownloadError = () => {
+    setShowDownloadErrorModal(false);
+    setDownloadError(null);
+    setSelectedVideo(null);
   };
 
   return (
@@ -215,6 +227,15 @@ const Dashboard = ({ onSignOut }) => {
         <LogsModal
           video={selectedVideo}
           onClose={() => setShowLogsModal(false)}
+        />
+      )}
+
+      {showDownloadErrorModal && (
+        <DownloadErrorModal
+          open={showDownloadErrorModal}
+          onClose={handleCloseDownloadError}
+          error={downloadError}
+          videoName={selectedVideo?.fileName}
         />
       )}
     </Box>
