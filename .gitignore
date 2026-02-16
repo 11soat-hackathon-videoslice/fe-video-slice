@@ -36,3 +36,4 @@ vdsc-react-app/.env.example
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+/fe-video-slice.iml
