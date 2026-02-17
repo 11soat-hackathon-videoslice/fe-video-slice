@@ -1104,7 +1104,7 @@ const UploadModal = ({ onClose, onSuccess }) => {
                       }}
                     />
                     <Typography variant="caption" color="text.secondary" sx={{ color: 'rgba(0, 0, 0, 0.6)' }}>
-                      Qualidade de saída (10-25% - Baixa | 25-75% - Média | 75-100% - Alta)
+                      Qualidade de saída (10-49% - Baixa | 50-74% - Média | 75-100% - Alta)
                     </Typography>
                   </Box>
                 </Box>
