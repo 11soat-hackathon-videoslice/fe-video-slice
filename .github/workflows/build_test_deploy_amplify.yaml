@@ -1,0 +1,92 @@
+name: Build, Test and Deploy vdsc-prd-app-web (Amplify)
+
+permissions:
+  id-token: write
+  contents: read
+
+on:
+  workflow_dispatch:
+
+#  push:
+#    branches:
+#      - develop
+#    paths:
+#      - 'vdsc-react-app/src/**'
+#      - 'vdsc-react-app/public/**'
+#      - 'vdsc-react-app/package.json'
+  pull_request:
+    branches:
+      - master
+    paths:
+      - 'vdsc-react-app/src/**'
+      - 'vdsc-react-app/public/**'
+      - 'vdsc-react-app/package.json'
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  NODE_VERSION: '20'
+  AMPLIFY_APP_ID: ${{ vars.AMPLIFY_APP_ID }}
+
+jobs:
+  approval:
+    name: Aprovação Manual (Produção)
+    runs-on: ubuntu-latest
+    if: (github.event_name == 'pull_request' && github.base_ref == 'master') || (github.event_name == 'push' && github.ref == 'refs/heads/master')
+    environment:
+      name: prod
+    steps:
+      - name: Aguardando aprovação manual para produção
+        run: |
+          echo "✅ Aprovação manual concedida para deploy em produção"
+
+  build-and-deploy:
+    name: Acionando build e deploy no Amplify
+    runs-on: ubuntu-latest
+    needs: approval
+    if: |
+      always() &&
+      (needs.approval.result == 'success' || needs.approval.result == 'skipped')
+    environment:
+      name: ${{ ((github.event_name == 'pull_request' && github.base_ref == 'master') || ((github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/master')) && 'prod' || 'develop' }}
+    steps:
+      - name: Chamando webhook para iniciar build no Amplify
+        env:
+          VDSC_AMPLIFY_WEBHOOK_ID: ${{ secrets.VDSC_AMPLIFY_WEBHOOK_ID }}
+          VDSC_AMPLIFY_WEBHOOK_TOKEN: ${{ secrets.VDSC_AMPLIFY_WEBHOOK_TOKEN }}
+          AMPLIFY_APP_ID: ${{ vars.AMPLIFY_APP_ID }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          ENVIRONMENT_NAME: ${{ ((github.event_name == 'pull_request' && github.base_ref == 'master') || ((github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/master')) && 'prod' || 'develop' }}
+        run: |
+          # Determinar o branch baseado no ambiente
+          if [ "$ENVIRONMENT_NAME" == "prod" ]; then
+            BRANCH_NAME="master"
+          else
+            BRANCH_NAME="develop"
+          fi
+          
+          echo "🌍 Ambiente: ${ENVIRONMENT_NAME}"
+          echo "🌿 Branch: ${BRANCH_NAME}"
+          echo ""
+          
+          echo "⚙️ Configurando URL do webhook para iniciar build no Amplify..."
+          URL="https://webhooks.amplify.us-east-1.amazonaws.com/prod/webhooks?id=$VDSC_AMPLIFY_WEBHOOK_ID&token=$VDSC_AMPLIFY_WEBHOOK_TOKEN&operation=startbuild"
+          echo "🔗 URL do webhook configurada: $URL"
+          echo ""
+          echo "🚀 Disparando build no Amplify via webhook..."
+          RESPONSE=$(curl -fsS -X POST \
+            -H "Content-Type: application/json" \
+            -d {} \
+            "$URL")
+          
+          echo "✅ Resposta do webhook:"
+          echo "$RESPONSE"
+          echo ""
+          
+          # Verificar se o build foi disparado com sucesso
+          if echo "$RESPONSE" | grep -q "MessageId"; then
+            echo "✅ Build disparado com sucesso no AWS Amplify para o branch ${BRANCH_NAME}!"
+            echo "🔗 Acesse o console do Amplify para acompanhar o build: https://console.aws.amazon.com/amplify/home?region=${AWS_REGION}#/${AMPLIFY_APP_ID}"
+          else
+            echo "⚠️ Webhook respondeu, mas verifique o console do Amplify para confirmar o build"
+          fi
+            

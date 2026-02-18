@@ -1,0 +1,15 @@
+{
+  "short_name": "Video Slice",
+  "name": "Video Slice - Dashboard",
+  "icons": [
+    {
+      "src": "logo_ico.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#667eea",
+  "background_color": "#ffffff"
+}
