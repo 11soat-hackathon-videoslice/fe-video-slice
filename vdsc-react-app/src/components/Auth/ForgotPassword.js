@@ -1,22 +1,27 @@
-import React, { useState } from 'react';
-import { resetPassword, confirmResetPassword } from 'aws-amplify/auth';
+import React, {useState} from 'react';
+import {confirmResetPassword, resetPassword} from 'aws-amplify/auth';
 import {
-  Container,
-  Box,
-  Card,
-  TextField,
-  Button,
-  Typography,
   Alert,
-  Stack,
-  Link,
+  Box,
+  Button,
+  Card,
   CircularProgress,
+  Container,
+  Link,
+  Stack,
+  TextField,
+  Typography,
 } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
+import {useTheme} from '@mui/material/styles';
 
 const ForgotPassword = ({ onSwitchToLogin }) => {
   const theme = useTheme();
-  const [step, setStep] = useState('request'); // 'request' or 'reset'
+  const isDark = theme.palette.mode === 'dark';
+  const focusColor = isDark ? '#a5b4fc' : '#5a3d9a';
+  const fieldSx = { '& .MuiInputBase-root': { height: 40 }, '& label.Mui-focused': { color: focusColor }, '& .MuiOutlinedInput-root.Mui-focused fieldset': { borderColor: focusColor, borderWidth: 2 } };
+  const btnSx = { mt: 0.5, textTransform: 'none', fontSize: '0.95rem', fontWeight: 600, py: 0.8, background: 'linear-gradient(135deg, #4c51bf 0%, #5a3d9a 100%)', '&:hover': { background: 'linear-gradient(135deg, #5a3d9a 0%, #4c51bf 100%)' } };
+
+  const [step, setStep] = useState('request');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -26,27 +31,11 @@ const ForgotPassword = ({ onSwitchToLogin }) => {
   const [success, setSuccess] = useState('');
 
   const validatePassword = (password) => {
-    const minLength = 8;
-    const hasUpperCase = /[A-Z]/.test(password);
-    const hasLowerCase = /[a-z]/.test(password);
-    const hasNumbers = /\d/.test(password);
-    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
-
-    if (password.length < minLength) {
-      return 'A senha deve ter no mínimo 8 caracteres';
-    }
-    if (!hasUpperCase) {
-      return 'A senha deve conter pelo menos uma letra maiúscula';
-    }
-    if (!hasLowerCase) {
-      return 'A senha deve conter pelo menos uma letra minúscula';
-    }
-    if (!hasNumbers) {
-      return 'A senha deve conter pelo menos um número';
-    }
-    if (!hasSpecialChar) {
-      return 'A senha deve conter pelo menos um caractere especial';
-    }
+    if (password.length < 8) return 'A senha deve ter no mínimo 8 caracteres';
+    if (!/[A-Z]/.test(password)) return 'A senha deve conter pelo menos uma letra maiúscula';
+    if (!/[a-z]/.test(password)) return 'A senha deve conter pelo menos uma letra minúscula';
+    if (!/\d/.test(password)) return 'A senha deve conter pelo menos um número';
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) return 'A senha deve conter pelo menos um caractere especial';
     return null;
   };
 
@@ -54,214 +43,76 @@ const ForgotPassword = ({ onSwitchToLogin }) => {
     e.preventDefault();
     setError('');
     setLoading(true);
-
     try {
       await resetPassword({ username: email });
       setStep('reset');
       setSuccess('Código de verificação enviado para seu e-mail!');
     } catch (err) {
-      console.error('Password reset request error:', err);
       setError(err.message || 'Erro ao solicitar redefinição de senha.');
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
   const handleConfirmReset = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
-
-    // Validate passwords match
-    if (newPassword !== confirmPassword) {
-      setError('As senhas não coincidem');
-      return;
-    }
-
-    // Validate password strength
-    const passwordError = validatePassword(newPassword);
-    if (passwordError) {
-      setError(passwordError);
-      return;
-    }
-
+    if (newPassword !== confirmPassword) { setError('As senhas não coincidem'); return; }
+    const pwErr = validatePassword(newPassword);
+    if (pwErr) { setError(pwErr); return; }
     setLoading(true);
-
     try {
-      await confirmResetPassword({
-        username: email,
-        confirmationCode: code,
-        newPassword: newPassword
-      });
-      
+      await confirmResetPassword({ username: email, confirmationCode: code, newPassword });
       setSuccess('Senha redefinida com sucesso!');
-      setTimeout(() => {
-        onSwitchToLogin();
-      }, 2000);
+      setTimeout(() => onSwitchToLogin(), 2000);
     } catch (err) {
-      console.error('Password reset confirmation error:', err);
       setError(err.message || 'Erro ao redefinir senha. Verifique o código.');
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
+
+  const logo = (
+    <Box sx={{ textAlign: 'center', mb: 2 }}>
+      <Box component="img" src="/logo3.png" alt="Video Slice" sx={{ width: 140, height: 140, objectFit: 'contain', mb: 1.5 }} />
+    </Box>
+  );
 
   if (step === 'reset') {
     return (
-      <Box
-        sx={{
-          minHeight: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
-          py: 2,
-        }}
-      >
+      <Box sx={{ height: '100vh', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)` }}>
         <Container maxWidth="sm">
-        <Card
-          elevation={3}
-          sx={{
-            p: 3,
-            borderRadius: 2,
-          }}
-        >
-            <Box sx={{ textAlign: 'center', mb: 3 }}>
-              <Box
-                component="img"
-                src="/logo.png"
-                alt="Video Slice"
-                sx={{
-                  width: 120,
-                  height: 120,
-                  objectFit: 'contain',
-                  mb: 1.5,
-                }}
-              />
-              <Typography
-                variant="h5"
-                component="h2"
-                sx={{
-                  fontWeight: 700,
-                  color: theme.palette.text.primary,
-                  mb: 1.5,
-                }}
-              >
-                Redefinir Senha
-              </Typography>
-              <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+          <Card elevation={3} sx={{ p: 3, borderRadius: 2 }}>
+            {logo}
+            <Box sx={{ textAlign: 'center', mb: 2 }}>
+              <Typography variant="h5" component="h2" sx={{ fontWeight: 700, color: 'text.primary', mb: 2 }}>Redefinir Senha</Typography>
+              <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                 Digite o código enviado para <strong>{email}</strong> e sua nova senha
               </Typography>
             </Box>
-
             <form onSubmit={handleConfirmReset}>
               <Stack spacing={1.2} sx={{ mb: 1.5 }}>
-                <TextField
-                  fullWidth
-                  id="code"
-                  label="Código de Verificação"
-                  type="text"
-                  size="small"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  required
-                  placeholder="123456"
-                  inputProps={{ maxLength: 6 }}
-                  variant="outlined"
-                  sx={{
-                    '& .MuiInputBase-root': {
-                      height: 40,
-                    },
-                  }}
-                />
-
-                <TextField
-                  fullWidth
-                  id="newPassword"
-                  label="Nova Senha"
-                  type="password"
-                  size="small"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  required
-                  placeholder="••••••••"
-                  autoComplete="new-password"
-                  variant="outlined"
-                  helperText="Mínimo 8 caracteres, incluindo maiúsculas, minúsculas, números e caracteres especiais"
-                  sx={{
-                    '& .MuiInputBase-root': {
-                      height: 40,
-                    },
-                    '& .MuiFormHelperText-root': {
-                      fontSize: '0.75rem',
-                    },
-                  }}
-                />
-
-                <TextField
-                  fullWidth
-                  id="confirmPassword"
-                  label="Confirmar Nova Senha"
-                  type="password"
-                  size="small"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                  placeholder="••••••••"
-                  autoComplete="new-password"
-                  variant="outlined"
-                  sx={{
-                    '& .MuiInputBase-root': {
-                      height: 40,
-                    },
-                  }}
-                />
-
-                {error && (
-                  <Alert severity="error" onClose={() => setError('')} sx={{ py: 0.8 }}>
-                    {error}
-                  </Alert>
-                )}
-
-                {success && (
-                  <Alert severity="success" onClose={() => setSuccess('')} sx={{ py: 0.8 }}>
-                    {success}
-                  </Alert>
-                )}
-
-                <Button
-                  type="submit"
-                  fullWidth
-                  variant="contained"
-                  size="small"
-                  disabled={loading}
-                  sx={{
-                    mt: 0.5,
-                    textTransform: 'none',
-                    fontSize: '0.95rem',
-                    fontWeight: 600,
-                    py: 0.8,
-                  }}
-                >
-                  {loading ? (
-                    <CircularProgress size={18} sx={{ mr: 1 }} />
-                  ) : null}
+                <TextField fullWidth id="code" label="Código de Verificação" type="text" size="small"
+                  value={code} onChange={(e) => setCode(e.target.value)} required placeholder="123456"
+                  inputProps={{ maxLength: 6 }} variant="outlined" sx={fieldSx} />
+                <TextField fullWidth id="newPassword" label="Nova Senha" type="password" size="small"
+                  value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required
+                  placeholder="••••••••" autoComplete="new-password" variant="outlined"
+                  helperText="Mín. 8 car.: maiúsc., minúsc., números e especiais"
+                  sx={{ ...fieldSx, '& .MuiFormHelperText-root': { fontSize: '0.72rem' } }} />
+                <TextField fullWidth id="confirmPassword" label="Confirmar Nova Senha" type="password" size="small"
+                  value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required
+                  placeholder="••••••••" autoComplete="new-password" variant="outlined" sx={fieldSx} />
+                {error && <Alert severity="error" onClose={() => setError('')} sx={{ py: 0.8 }}>{error}</Alert>}
+                {success && <Alert severity="success" onClose={() => setSuccess('')} sx={{ py: 0.8 }}>{success}</Alert>}
+                <Button type="submit" fullWidth variant="contained" size="small" disabled={loading} sx={btnSx}>
+                  {loading && <CircularProgress size={18} sx={{ mr: 1, color: 'white' }} />}
                   {loading ? 'Redefinindo...' : 'Redefinir Senha'}
                 </Button>
               </Stack>
             </form>
-
-            <Box sx={{ textAlign: 'center' }}>
-              <Link
-                component="button"
-                type="button"
-                variant="caption"
-                onClick={onSwitchToLogin}
-                sx={{ cursor: 'pointer', fontSize: '0.85rem' }}
-              >
+            <Stack direction="row" sx={{ justifyContent: 'center', alignItems: 'center', gap: 0.8, mt: 1.5 }}>
+              <Link component="button" type="button" variant="caption" onClick={onSwitchToLogin} sx={{ cursor: 'pointer', fontSize: '0.85rem', color: focusColor }}>
                 Voltar para login
               </Link>
-            </Box>
+            </Stack>
           </Card>
         </Container>
       </Box>
@@ -269,118 +120,34 @@ const ForgotPassword = ({ onSwitchToLogin }) => {
   }
 
   return (
-    <Box
-      sx={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
-        py: 2,
-      }}
-    >
+    <Box sx={{ height: '100vh', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)` }}>
       <Container maxWidth="sm">
-        <Card
-          elevation={3}
-          sx={{
-            p: 3,
-            borderRadius: 2,
-          }}
-        >
+        <Card elevation={3} sx={{ p: 3, borderRadius: 2 }}>
+          {logo}
           <Box sx={{ textAlign: 'center', mb: 2 }}>
-            <Box
-              component="img"
-              src="/logo.png"
-              alt="Video Slice"
-              sx={{
-                width: 120,
-                height: 120,
-                objectFit: 'contain',
-                mb: 1.5,
-              }}
-            />
-            <Typography
-              variant="h5"
-              component="h2"
-              sx={{
-                fontWeight: 700,
-                color: theme.palette.text.primary,
-                mb: 1.5,
-              }}
-            >
-              Esqueci minha Senha
-            </Typography>
-            <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+            <Typography variant="h5" component="h2" sx={{ fontWeight: 700, color: 'text.primary', mb: 2 }}>Esqueci minha Senha</Typography>
+            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
               Digite seu e-mail para receber um código de verificação
             </Typography>
           </Box>
-
           <form onSubmit={handleRequestReset}>
             <Stack spacing={1.2} sx={{ mb: 1.5 }}>
-              <TextField
-                fullWidth
-                id="email"
-                label="E-mail"
-                type="email"
-                size="small"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                placeholder="seu@email.com"
-                autoComplete="email"
-                variant="outlined"
-                sx={{
-                  '& .MuiInputBase-root': {
-                    height: 40,
-                  },
-                }}
-              />
-
-              {error && (
-                <Alert severity="error" onClose={() => setError('')} sx={{ py: 0.8 }}>
-                  {error}
-                </Alert>
-              )}
-
-              {success && (
-                <Alert severity="success" onClose={() => setSuccess('')} sx={{ py: 0.8 }}>
-                  {success}
-                </Alert>
-              )}
-
-              <Button
-                type="submit"
-                fullWidth
-                variant="contained"
-                size="small"
-                disabled={loading}
-                sx={{
-                  mt: 0.5,
-                  textTransform: 'none',
-                  fontSize: '0.95rem',
-                  fontWeight: 600,
-                  py: 0.8,
-                }}
-              >
-                {loading ? (
-                  <CircularProgress size={18} sx={{ mr: 1 }} />
-                ) : null}
+              <TextField fullWidth id="email" label="E-mail" type="email" size="small"
+                value={email} onChange={(e) => setEmail(e.target.value)} required
+                placeholder="seu@email.com" autoComplete="email" variant="outlined" sx={fieldSx} />
+              {error && <Alert severity="error" onClose={() => setError('')} sx={{ py: 0.8 }}>{error}</Alert>}
+              {success && <Alert severity="success" onClose={() => setSuccess('')} sx={{ py: 0.8 }}>{success}</Alert>}
+              <Button type="submit" fullWidth variant="contained" size="small" disabled={loading} sx={btnSx}>
+                {loading && <CircularProgress size={18} sx={{ mr: 1, color: 'white' }} />}
                 {loading ? 'Enviando...' : 'Enviar Código'}
               </Button>
             </Stack>
           </form>
-
-          <Box sx={{ textAlign: 'center' }}>
-            <Link
-              component="button"
-              type="button"
-              variant="caption"
-              onClick={onSwitchToLogin}
-              sx={{ cursor: 'pointer', fontSize: '0.85rem' }}
-            >
+          <Stack direction="row" sx={{ justifyContent: 'center', alignItems: 'center', gap: 0.8, mt: 1.5 }}>
+            <Link component="button" type="button" variant="caption" onClick={onSwitchToLogin} sx={{ cursor: 'pointer', fontSize: '0.85rem', color: focusColor }}>
               Voltar para login
             </Link>
-          </Box>
+          </Stack>
         </Card>
       </Container>
     </Box>

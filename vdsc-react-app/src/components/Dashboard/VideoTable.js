@@ -5,8 +5,12 @@ import {
   Chip,
   CircularProgress,
   Collapse,
+  FormControl,
   IconButton,
+  MenuItem,
+  Pagination,
   Paper,
+  Select,
   Table,
   TableBody,
   TableCell,
@@ -15,6 +19,7 @@ import {
   TableRow,
   Typography
 } from '@mui/material';
+import {useTheme} from '@mui/material/styles';
 import {keyframes} from '@mui/system';
 import {
   Description as DescriptionIcon,
@@ -40,6 +45,8 @@ const pulseAnimation = keyframes`
 `;
 
 const VideoTable = ({ videos, loading, onDownload, onViewLogs }) => {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
   const [sortConfig, setSortConfig] = useState({ key: 'uploadDate', direction: 'desc' });
   const [expandedRows, setExpandedRows] = useState(new Set());
   const [filters, setFilters] = useState({
@@ -50,6 +57,8 @@ const VideoTable = ({ videos, loading, onDownload, onViewLogs }) => {
     dateFrom: '',
     dateTo: ''
   });
+  const [page, setPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   const formatDate = (dateString) => {
     if (!dateString) return '-';
@@ -311,6 +320,7 @@ const VideoTable = ({ videos, loading, onDownload, onViewLogs }) => {
 
   const handleFilterChange = (newFilters) => {
     setFilters(newFilters);
+    setPage(1);
   };
 
   const handleClearFilters = () => {
@@ -322,6 +332,7 @@ const VideoTable = ({ videos, loading, onDownload, onViewLogs }) => {
       dateFrom: '',
       dateTo: ''
     });
+    setPage(1);
   };
 
   const requestSort = (key) => {
@@ -369,6 +380,8 @@ const VideoTable = ({ videos, loading, onDownload, onViewLogs }) => {
   const hasActiveFilters = filters.id || filters.search || filters.fileExtension || filters.status || filters.dateFrom || filters.dateTo;
   const resultCount = sortedVideos.length;
   const totalCount = videos.length;
+  const totalPages = Math.max(1, Math.ceil(resultCount / rowsPerPage));
+  const paginatedVideos = sortedVideos.slice((page - 1) * rowsPerPage, page * rowsPerPage);
 
   return (
     <Box>
@@ -384,7 +397,7 @@ const VideoTable = ({ videos, loading, onDownload, onViewLogs }) => {
         </Typography>
       )}
 
-      <TableContainer component={Paper} sx={{ boxShadow: 2 }}>
+      <TableContainer component={Paper} sx={{ boxShadow: 2, bgcolor: 'background.paper' }}>
         <Table size="small">
           <TableHead>
             <TableRow sx={{ background: 'linear-gradient(135deg, rgba(90, 61, 154, 0.9) 0%, rgba(76, 81, 191, 0.9) 100%)' }}>
@@ -395,24 +408,24 @@ const VideoTable = ({ videos, loading, onDownload, onViewLogs }) => {
                 Ações
               </TableCell>
             </TableRow>
-            <TableRow sx={{ bgcolor: '#f3e5f5' }}>
-              <TableCell sx={{ fontWeight: 'bold', cursor: 'pointer', py: 0.5, px: 1, fontSize: '0.8125rem', textAlign: 'center', color: 'text.secondary' }} onClick={() => requestSort('id')}>
+            <TableRow sx={{ bgcolor: isDark ? 'rgba(90, 61, 154, 0.25)' : '#f3e5f5' }}>
+              <TableCell sx={{ fontWeight: 'bold', cursor: 'pointer', py: 0.5, px: 1, fontSize: '0.8125rem', textAlign: 'center', color: 'text.primary' }} onClick={() => requestSort('id')}>
                 ID <span style={{ fontSize: '1.125rem', opacity: 0.5, marginLeft: '2px' }}>{sortConfig.key === 'id' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '⇅'}</span>
               </TableCell>
-              <TableCell sx={{ fontWeight: 'bold', cursor: 'pointer', py: 0.5, px: 1, fontSize: '0.8125rem', textAlign: 'center', color: 'text.secondary' }} onClick={() => requestSort('fileName')}>
+              <TableCell sx={{ fontWeight: 'bold', cursor: 'pointer', py: 0.5, px: 1, fontSize: '0.8125rem', textAlign: 'center', color: 'text.primary' }} onClick={() => requestSort('fileName')}>
                 Arquivo <span style={{ fontSize: '1.125rem', opacity: 0.5, marginLeft: '2px' }}>{sortConfig.key === 'fileName' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '⇅'}</span>
               </TableCell>
-              <TableCell sx={{ fontWeight: 'bold', cursor: 'pointer', py: 0.5, px: 1, fontSize: '0.8125rem', textAlign: 'center', color: 'text.secondary' }} onClick={() => requestSort('uploadDate')}>
+              <TableCell sx={{ fontWeight: 'bold', cursor: 'pointer', py: 0.5, px: 1, fontSize: '0.8125rem', textAlign: 'center', color: 'text.primary' }} onClick={() => requestSort('uploadDate')}>
                 Data de Upload <span style={{ fontSize: '1.125rem', opacity: 0.5, marginLeft: '2px' }}>{sortConfig.key === 'uploadDate' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '⇅'}</span>
               </TableCell>
-              <TableCell sx={{ fontWeight: 'bold', cursor: 'pointer', py: 0.5, px: 1, fontSize: '0.8125rem', textAlign: 'center', color: 'text.secondary' }} onClick={() => requestSort('duration')}>
+              <TableCell sx={{ fontWeight: 'bold', cursor: 'pointer', py: 0.5, px: 1, fontSize: '0.8125rem', textAlign: 'center', color: 'text.primary' }} onClick={() => requestSort('duration')}>
                 Duração <span style={{ fontSize: '1.125rem', opacity: 0.5, marginLeft: '2px' }}>{sortConfig.key === 'duration' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '⇅'}</span>
               </TableCell>
-              <TableCell sx={{ fontWeight: 'bold', cursor: 'pointer', py: 0.5, px: 0.25, fontSize: '0.8125rem', textAlign: 'center', color: 'text.secondary', width: '80px', minWidth: '80px' }} onClick={() => requestSort('status')}>
+              <TableCell sx={{ fontWeight: 'bold', cursor: 'pointer', py: 0.5, px: 0.25, fontSize: '0.8125rem', textAlign: 'center', color: 'text.primary', width: '80px', minWidth: '80px' }} onClick={() => requestSort('status')}>
                 Status <span style={{ fontSize: '1.125rem', opacity: 0.5, marginLeft: '2px' }}>{sortConfig.key === 'status' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '⇅'}</span>
               </TableCell>
-              <TableCell sx={{ fontWeight: 'bold', textAlign: 'center', py: 0.5, px: 1, fontSize: '0.8125rem', color: 'text.secondary' }}>Download</TableCell>
-              <TableCell sx={{ fontWeight: 'bold', textAlign: 'center', py: 0.5, px: 1, fontSize: '0.8125rem', color: 'text.secondary' }}>Logs</TableCell>
+              <TableCell sx={{ fontWeight: 'bold', textAlign: 'center', py: 0.5, px: 1, fontSize: '0.8125rem', color: 'text.primary' }}>Download</TableCell>
+              <TableCell sx={{ fontWeight: 'bold', textAlign: 'center', py: 0.5, px: 1, fontSize: '0.8125rem', color: 'text.primary' }}>Logs</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -428,14 +441,14 @@ const VideoTable = ({ videos, loading, onDownload, onViewLogs }) => {
                 </TableCell>
               </TableRow>
             ) : (
-              sortedVideos.map((video) => (
+              paginatedVideos.map((video, index) => (
                 <React.Fragment key={video.id}>
                   <TableRow
                     hover
-                    sx={{ cursor: 'pointer', bgcolor: sortedVideos.indexOf(video) % 2 === 0 ? '#ffffff' : '#f8f6fa' }}
+                    sx={{ cursor: 'pointer', bgcolor: index % 2 === 0 ? 'background.paper' : (isDark ? 'rgba(255,255,255,0.05)' : '#f8f6fa') }}
                     onClick={() => toggleRow(video.id)}
                   >
-                    <TableCell sx={{ py: 0.5, px: 1, textAlign: 'center', color: 'text.secondary' }}>
+                    <TableCell sx={{ py: 0.5, px: 1, textAlign: 'center', color: 'text.primary' }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'center' }}>
                         <IconButton size="small" sx={{ p: 0.25 }}>
                           {expandedRows.has(video.id) ? <KeyboardArrowUpIcon fontSize="small" /> : <KeyboardArrowDownIcon fontSize="small" />}
@@ -443,15 +456,15 @@ const VideoTable = ({ videos, loading, onDownload, onViewLogs }) => {
                         <Typography variant="body2" sx={{ fontSize: '0.8125rem' }}>{video.id}</Typography>
                       </Box>
                     </TableCell>
-                    <TableCell sx={{ py: 0.5, px: 1, textAlign: 'center', color: 'text.secondary' }}>
+                    <TableCell sx={{ py: 0.5, px: 1, textAlign: 'center', color: 'text.primary' }}>
                       <Box sx={{ textAlign: 'center' }}>
                         <Typography variant="body2" sx={{ fontWeight: 'medium', fontSize: '0.8125rem' }}>
                           {video.fileName}.{video.fileExtension}
                         </Typography>
                       </Box>
                     </TableCell>
-                    <TableCell sx={{ py: 0.5, px: 1, fontSize: '0.8125rem', textAlign: 'center', color: 'text.secondary' }}>{formatDate(video.uploadDate)}</TableCell>
-                    <TableCell sx={{ py: 0.5, px: 1, fontSize: '0.8125rem', textAlign: 'center', color: 'text.secondary' }}>{formatDuration(video.duration)}</TableCell>
+                    <TableCell sx={{ py: 0.5, px: 1, fontSize: '0.8125rem', textAlign: 'center', color: 'text.primary' }}>{formatDate(video.uploadDate)}</TableCell>
+                    <TableCell sx={{ py: 0.5, px: 1, fontSize: '0.8125rem', textAlign: 'center', color: 'text.primary' }}>{formatDuration(video.duration)}</TableCell>
                     <TableCell sx={{ py: 0.5, px: 0.25, textAlign: 'center', width: '80px', minWidth: '80px' }}>{getStatusBadge(video.status)}</TableCell>
                     <TableCell sx={{ textAlign: 'center', py: 0.5, px: 0.5 }}>
                       <IconButton
@@ -505,8 +518,8 @@ const VideoTable = ({ videos, loading, onDownload, onViewLogs }) => {
                   <TableRow>
                     <TableCell sx={{ py: 0 }} colSpan={7}>
                       <Collapse in={expandedRows.has(video.id)} timeout="auto" unmountOnExit>
-                        <Box sx={{ p: 1, bgcolor: '#ede7f6', borderLeft: '4px solid #5a3d9a' }}>
-                          <Typography variant="h6" gutterBottom sx={{ fontSize: '0.9375rem', mb: 0.75, color: '#1a0033', fontWeight: 'bold' }}>
+                        <Box sx={{ p: 1, bgcolor: isDark ? 'rgba(90, 61, 154, 0.2)' : '#ede7f6', borderLeft: '4px solid #5a3d9a' }}>
+                          <Typography variant="h6" gutterBottom sx={{ fontSize: '0.9375rem', mb: 0.75, color: isDark ? '#ce93d8' : '#1a0033', fontWeight: 'bold' }}>
                             Informações de Processamento
                           </Typography>
                           <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 0.75 }}>
@@ -553,6 +566,55 @@ const VideoTable = ({ videos, loading, onDownload, onViewLogs }) => {
           </TableBody>
         </Table>
       </TableContainer>
+
+      {/* Paginação */}
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          mt: 1,
+          px: 0.5,
+          flexWrap: 'wrap',
+          gap: 1,
+        }}
+      >
+        <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.8rem' }}>
+          {resultCount === 0
+            ? 'Nenhum resultado'
+            : `${(page - 1) * rowsPerPage + 1}–${Math.min(page * rowsPerPage, resultCount)} de ${resultCount} vídeo${resultCount !== 1 ? 's' : ''}`}
+        </Typography>
+
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
+            Itens por página:
+          </Typography>
+          <FormControl size="small" variant="outlined">
+            <Select
+              value={rowsPerPage}
+              onChange={(e) => { setRowsPerPage(Number(e.target.value)); setPage(1); }}
+              sx={{ fontSize: '0.8rem', height: 28, '.MuiSelect-select': { py: 0.25, pr: 3 } }}
+            >
+              <MenuItem value={10} sx={{ fontSize: '0.8rem' }}>10</MenuItem>
+              <MenuItem value={20} sx={{ fontSize: '0.8rem' }}>20</MenuItem>
+              <MenuItem value={50} sx={{ fontSize: '0.8rem' }}>50</MenuItem>
+              <MenuItem value={100} sx={{ fontSize: '0.8rem' }}>100</MenuItem>
+            </Select>
+          </FormControl>
+
+          <Pagination
+            count={totalPages}
+            page={page}
+            onChange={(_, value) => setPage(value)}
+            size="small"
+            shape="rounded"
+            siblingCount={1}
+            sx={{
+              '& .MuiPaginationItem-root': { fontSize: '0.8rem', minWidth: 28, height: 28 },
+            }}
+          />
+        </Box>
+      </Box>
     </Box>
   );
 };

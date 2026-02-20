@@ -6,10 +6,16 @@ import UploadModal from './UploadModal';
 import LogsModal from './LogsModal';
 import DownloadErrorModal from './DownloadErrorModal';
 import NotificationIcon from './NotificationIcon';
-import {Alert, AppBar, Box, Button, Toolbar, Typography} from '@mui/material';
-import {CloudUpload as CloudUploadIcon, Logout as LogoutIcon, Refresh as RefreshIcon} from '@mui/icons-material';
+import {Alert, AppBar, Box, Button, IconButton, Toolbar, Tooltip, Typography} from '@mui/material';
+import {
+  CloudUpload as CloudUploadIcon,
+  DarkMode as DarkModeIcon,
+  LightMode as LightModeIcon,
+  Logout as LogoutIcon,
+  Refresh as RefreshIcon
+} from '@mui/icons-material';
 
-const Dashboard = ({ onSignOut }) => {
+const Dashboard = ({ onSignOut, darkMode, onToggleDarkMode }) => {
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -105,8 +111,8 @@ const Dashboard = ({ onSignOut }) => {
   };
 
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: '#f5f7fa' }}>
-      <AppBar 
+    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
+      <AppBar
         position="static" 
         sx={{ 
           background: 'linear-gradient(135deg, #0a0e1a 0%, #1a1f35 100%)',
@@ -117,8 +123,8 @@ const Dashboard = ({ onSignOut }) => {
           <Toolbar disableGutters sx={{ py: 1 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexGrow: 1 }}>
               <img 
-                src="/logo_ico.png" 
-                alt="Video Slice" 
+                src="/logo3.png"
+                alt="Video Slice"
                 style={{ width: 75, height: 75, objectFit: 'contain' }}
               />
               <Typography variant="h5" component="h1" sx={{ fontWeight: 600 }}>
@@ -134,6 +140,11 @@ const Dashboard = ({ onSignOut }) => {
                 onNewNotification={handleNewNotification}
                 onNotificationRead={handleNotificationRead}
               />
+              <Tooltip title={darkMode ? 'Modo claro' : 'Modo escuro'}>
+                <IconButton onClick={onToggleDarkMode} sx={{ color: 'white' }}>
+                  {darkMode ? <LightModeIcon /> : <DarkModeIcon />}
+                </IconButton>
+              </Tooltip>
               <Button
                 variant="outlined"
                 color="inherit"
