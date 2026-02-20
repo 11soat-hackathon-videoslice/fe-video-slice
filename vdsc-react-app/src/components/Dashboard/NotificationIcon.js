@@ -13,7 +13,7 @@ import {
   MenuItem,
   Typography
 } from '@mui/material';
-import {keyframes} from '@mui/system';
+import {useTheme} from '@mui/material/styles';
 import {
   CheckCircle as CheckCircleIcon,
   Error as ErrorIcon,
@@ -23,23 +23,10 @@ import {
   Warning as WarningIcon
 } from '@mui/icons-material';
 
-// Keyframes para animação de pulso (igual ao VideoTable)
-const pulseAnimation = keyframes`
-  0% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.8;
-    transform: scale(1.02);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-`;
-
 const NotificationIcon = ({ onNewNotification, onNotificationRead }) => {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -266,32 +253,11 @@ const NotificationIcon = ({ onNewNotification, onNotificationRead }) => {
 
   const getStatusBadge = (status) => {
     const statusMap = {
-      'UPLOADED': {
-        label: 'Carregado',
-        color: '#CE93D8',
-        textColor: '#4A148C'
-      },
-      'PROCESSING': {
-        label: 'Processando',
-        color: '#CE93D8',
-        textColor: '#4A148C',
-        isProcessing: true
-      },
-      'FINISHED': {
-        label: 'Concluído',
-        color: '#A5D6A7',
-        textColor: '#1B5E20'
-      },
-      'FAILED': {
-        label: 'Falhou',
-        color: '#EF9A9A',
-        textColor: '#B71C1C'
-      },
-      'RETRYING': {
-        label: 'Retentativa Agendada',
-        color: '#FFF176',
-        textColor: '#E65100'
-      }
+      'UPLOADED': { label: 'Carregado', color: '#CE93D8', textColor: '#4A148C' },
+      'PROCESSING': { label: 'Processando', color: '#CE93D8', textColor: '#4A148C' },
+      'FINISHED': { label: 'Concluído', color: '#A5D6A7', textColor: '#1B5E20' },
+      'FAILED': { label: 'Falhou', color: '#EF9A9A', textColor: '#B71C1C' },
+      'RETRYING': { label: 'Retentativa Agendada', color: '#FFF176', textColor: '#E65100' }
     };
 
     const statusInfo = statusMap[status?.toUpperCase()] || {
@@ -318,9 +284,6 @@ const NotificationIcon = ({ onNewNotification, onNotificationRead }) => {
           whiteSpace: 'nowrap',
           flexShrink: 0,
           height: 'auto',
-          ...(statusInfo.isProcessing && {
-            animation: `${pulseAnimation} 1.5s ease-in-out infinite`
-          })
         }}
       />
     );
@@ -342,14 +305,8 @@ const NotificationIcon = ({ onNewNotification, onNotificationRead }) => {
         anchorEl={anchorEl}
         open={showDropdown}
         onClose={handleCloseDropdown}
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'right'
-        }}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'right'
-        }}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         PaperProps={{
           sx: {
             width: 600,
@@ -357,6 +314,7 @@ const NotificationIcon = ({ onNewNotification, onNotificationRead }) => {
             overflow: 'hidden',
             m: 0,
             p: 0,
+            bgcolor: 'background.paper',
             '& .MuiList-root': {
               p: 0,
               maxHeight: 'calc(350px - 56px)',
@@ -379,30 +337,26 @@ const NotificationIcon = ({ onNewNotification, onNotificationRead }) => {
                     fontSize: '0.7rem',
                     py: 0.25,
                     px: 1,
-                    bgcolor: '#fff',
-                    color: '#4c51bf',
-                    fontWeight: 600,
+                    bgcolor: 'rgba(255,255,255,0.95)',
+                    color: '#3730a3',
+                    fontWeight: 700,
                     '&:hover': {
-                      bgcolor: '#f0f0f0',
-                      color: '#5a3d9a'
+                      bgcolor: 'rgba(255,255,255,1)',
+                      color: '#1e1b6e',
                     }
                   }}
                 >
                   Apagar Todas
                 </Button>
-                <IconButton
-                  onClick={loadNotifications}
-                  disabled={loading}
-                  size="small"
-                  sx={{ p: 0.5 }}
-                >
-                  {loading ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : <NotificationsNoneIcon fontSize="small" sx={{ color: '#fff' }} />}
+                <IconButton onClick={loadNotifications} disabled={loading} size="small" sx={{ p: 0.5 }}>
+                  {loading
+                    ? <CircularProgress size={16} sx={{ color: '#fff' }} />
+                    : <NotificationsNoneIcon fontSize="small" sx={{ color: '#fff' }} />}
                 </IconButton>
               </>
             )}
           </Box>
         </Box>
-
 
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 3 }}>
@@ -423,15 +377,15 @@ const NotificationIcon = ({ onNewNotification, onNotificationRead }) => {
               sx={{
                 py: 1,
                 px: 1.5,
-                bgcolor: '#f9fafb',
-                borderBottom: '1px solid #e5e7eb',
+                bgcolor: isDark ? 'rgba(255,255,255,0.04)' : '#f9fafb',
+                borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : '#e5e7eb'}`,
                 borderLeft: '4px solid transparent',
                 transition: 'all 0.2s ease',
                 display: 'flex',
                 alignItems: 'center',
                 '&:hover': {
-                  bgcolor: '#f3f4f6',
-                  borderLeft: '4px solid #4c51bf'
+                  bgcolor: isDark ? 'rgba(165,180,252,0.1)' : '#f3f4f6',
+                  borderLeft: `4px solid ${isDark ? '#a5b4fc' : '#4c51bf'}`,
                 }
               }}
             >
@@ -453,22 +407,14 @@ const NotificationIcon = ({ onNewNotification, onNotificationRead }) => {
                   primaryTypographyProps={{
                     variant: 'body2',
                     fontSize: '0.8125rem',
-                    color: '#424242',
-                    sx: {
-                      wordWrap: 'break-word',
-                      overflowWrap: 'break-word',
-                      whiteSpace: 'normal'
-                    }
+                    color: isDark ? '#e2e8f0' : '#424242',
+                    sx: { wordWrap: 'break-word', overflowWrap: 'break-word', whiteSpace: 'normal' }
                   }}
                   secondaryTypographyProps={{
                     variant: 'caption',
                     fontSize: '0.6875rem',
-                    color: '#616161',
-                    sx: {
-                      wordWrap: 'break-word',
-                      overflowWrap: 'break-word',
-                      whiteSpace: 'normal'
-                    }
+                    color: isDark ? '#94a3b8' : '#616161',
+                    sx: { wordWrap: 'break-word', overflowWrap: 'break-word', whiteSpace: 'normal' }
                   }}
                 />
               </Box>

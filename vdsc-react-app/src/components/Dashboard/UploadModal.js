@@ -2,6 +2,7 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import PropTypes from 'prop-types';
 import {getCurrentUser} from 'aws-amplify/auth';
 import {uploadToS3, videoAPI} from '../../services/api';
+import {useTheme} from '@mui/material/styles';
 import {
   Alert,
   Box,
@@ -59,6 +60,11 @@ const generateShortUUID = () => {
 };
 
 const UploadModal = ({ onClose, onSuccess }) => {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+  const textMuted = isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)';
+  const dragBg = isDark ? 'rgba(90,61,154,0.15)' : '#f3e5f5';
+
   const [file, setFile] = useState(null);
   const [dragActive, setDragActive] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -841,13 +847,13 @@ const UploadModal = ({ onClose, onSuccess }) => {
               severity="warning"
               sx={{
                 width: 'auto',
-                background: 'linear-gradient(135deg, rgba(76, 81, 191, 0.1) 0%, rgba(90, 61, 154, 0.1) 100%)',
-                border: '2px solid #5a3d9a',
-                '& .MuiAlert-icon': {
-                  color: '#5a3d9a'
-                },
+                background: isDark
+                  ? 'linear-gradient(135deg, rgba(165,130,252,0.15) 0%, rgba(165,100,252,0.15) 100%)'
+                  : 'linear-gradient(135deg, rgba(76,81,191,0.1) 0%, rgba(90,61,154,0.1) 100%)',
+                border: `2px solid ${isDark ? '#a5b4fc' : '#5a3d9a'}`,
+                '& .MuiAlert-icon': { color: isDark ? '#a5b4fc' : '#5a3d9a' },
                 '& .MuiAlert-message': {
-                  color: '#5a3d9a',
+                  color: isDark ? '#a5b4fc' : '#5a3d9a',
                   fontWeight: 'bold',
                   fontSize: '1.1rem'
                 }
@@ -868,7 +874,7 @@ const UploadModal = ({ onClose, onSuccess }) => {
                 minHeight: '300px',
                 gap: 2
               }}>
-                <Typography variant="h6" sx={{ color: '#5a3d9a', fontWeight: 'bold' }}>
+                <Typography variant="h6" sx={{ color: isDark ? '#a5b4fc' : '#5a3d9a', fontWeight: 'bold' }}>
                   Enviando vídeo...
                 </Typography>
                 <Box sx={{ width: '80%' }}>
@@ -885,7 +891,7 @@ const UploadModal = ({ onClose, onSuccess }) => {
                     }}
                   />
                 </Box>
-                <Typography variant="body2" sx={{ color: 'rgba(0, 0, 0, 0.6)' }}>
+                <Typography variant="body2" sx={{ color: textMuted }}>
                   Por favor, aguarde enquanto o arquivo está sendo enviado...
                 </Typography>
               </Box>
@@ -897,8 +903,8 @@ const UploadModal = ({ onClose, onSuccess }) => {
                 p: 0.5,
                 mb: 1,
                 border: '2px dashed',
-                borderColor: dragActive ? 'primary.main' : 'grey.300',
-                bgcolor: dragActive ? '#f3e5f5' : '#f3e5f5',
+                borderColor: dragActive ? 'primary.main' : 'grey.400',
+                bgcolor: dragActive ? (isDark ? 'rgba(90,61,154,0.25)' : '#ede7f6') : dragBg,
                 cursor: 'pointer',
                 textAlign: 'center',
                 transition: 'all 0.3s ease'
@@ -919,11 +925,11 @@ const UploadModal = ({ onClose, onSuccess }) => {
 
               {!file ? (
                 <Box>
-                  <CloudUploadIcon sx={{ fontSize: 48, color: 'rgba(0, 0, 0, 0.6)', mb: 1 }} />
-                  <Typography variant="h6" gutterBottom sx={{ color: 'rgba(0, 0, 0, 0.6)', fontWeight: 'bold' }}>
+                  <CloudUploadIcon sx={{ fontSize: 48, color: textMuted, mb: 1 }} />
+                  <Typography variant="h6" gutterBottom sx={{ color: textMuted, fontWeight: 'bold' }}>
                     Arraste um vídeo aqui ou clique para selecionar
                   </Typography>
-                  <Typography variant="body2" sx={{ color: 'rgba(0, 0, 0, 0.6)' }}>
+                  <Typography variant="body2" sx={{ color: textMuted }}>
                     Formatos aceitos: {ALLOWED_FORMATS.join(', ')} | Máx: 500MB
                   </Typography>
                 </Box>
@@ -938,22 +944,22 @@ const UploadModal = ({ onClose, onSuccess }) => {
                       }
                     }}
                   />
-                  <Typography variant="h6" gutterBottom sx={{ color: 'rgba(0, 0, 0, 0.6)', fontWeight: 'bold' }}>
+                  <Typography variant="h6" gutterBottom sx={{ color: textMuted, fontWeight: 'bold' }}>
                     Preparando upload...
                   </Typography>
-                  <Typography variant="body2" sx={{ color: 'rgba(0, 0, 0, 0.6)' }}>
+                  <Typography variant="body2" sx={{ color: textMuted }}>
                     Obtendo URL de upload
                   </Typography>
                 </Box>
               ) : (
                 <Box>
-                  <Typography variant="h6" color="success.main" gutterBottom sx={{ color: 'rgba(0, 0, 0, 0.6)', fontWeight: 'bold' }}>
+                  <Typography variant="h6" gutterBottom sx={{ color: 'success.main', fontWeight: 'bold' }}>
                     ✓ {file.name}
                   </Typography>
-                  <Typography variant="body2" sx={{ color: 'rgba(0, 0, 0, 0.6)' }}>
+                  <Typography variant="body2" sx={{ color: textMuted }}>
                     {(file.size / (1024 * 1024)).toFixed(2)} MB
                     {uploadInfo && uploadInfo.expiresIn && (
-                      <span style={{ marginLeft: '8px', color: '#4c51bf', fontWeight: 'bold' }}>
+                      <span style={{ marginLeft: '8px', color: isDark ? '#a5b4fc' : '#4c51bf', fontWeight: 'bold' }}>
                         • Link expira em {uploadInfo.expiresIn}
                       </span>
                     )}
@@ -971,36 +977,36 @@ const UploadModal = ({ onClose, onSuccess }) => {
             {file && (
               <Box>
                 {/* Non-editable Properties */}
-                <Typography variant="subtitle1" gutterBottom sx={{ mt: 1, color: 'rgba(0, 0, 0, 0.6)', fontWeight: 'bold', textAlign: 'center' }}>
+                <Typography variant="subtitle1" gutterBottom sx={{ mt: 1, color: textMuted, fontWeight: 'bold', textAlign: 'center' }}>
                   Propriedades do Arquivo
                 </Typography>
                 <Grid container spacing={2} sx={{ mb: 2, justifyContent: 'center' }}>
                   <Grid item xs={12} sm={4}>
                     <Box sx={{ textAlign: 'center' }}>
-                      <Typography variant="caption" sx={{ color: 'rgba(0, 0, 0, 0.6)' }}>
+                      <Typography variant="caption" sx={{ color: textMuted }}>
                         ID do Vídeo
                       </Typography>
-                      <Typography variant="body2" sx={{ color: 'rgba(0, 0, 0, 0.6)', fontWeight: 'bold' }}>
+                      <Typography variant="body2" sx={{ color: textMuted, fontWeight: 'bold' }}>
                         {videoId}
                       </Typography>
                     </Box>
                   </Grid>
                   <Grid item xs={12} sm={4}>
                     <Box sx={{ textAlign: 'center' }}>
-                      <Typography variant="caption" sx={{ color: 'rgba(0, 0, 0, 0.6)' }}>
+                      <Typography variant="caption" sx={{ color: textMuted }}>
                         Nome do Arquivo
                       </Typography>
-                      <Typography variant="body2" sx={{ color: 'rgba(0, 0, 0, 0.6)', fontWeight: 'bold' }}>
+                      <Typography variant="body2" sx={{ color: textMuted, fontWeight: 'bold' }}>
                         {`${formData.fileName}.${videoExtension}`}
                       </Typography>
                     </Box>
                   </Grid>
                   <Grid item xs={12} sm={4}>
                     <Box sx={{ textAlign: 'center' }}>
-                      <Typography variant="caption" sx={{ color: 'rgba(0, 0, 0, 0.6)' }}>
+                      <Typography variant="caption" sx={{ color: textMuted }}>
                         Duração
                       </Typography>
-                      <Typography variant="body2" sx={{ color: 'rgba(0, 0, 0, 0.6)', fontWeight: 'bold' }}>
+                      <Typography variant="body2" sx={{ color: textMuted, fontWeight: 'bold' }}>
                         {formData.timeUnit === 'milliseconds'
                           ? `${Math.floor(videoDuration * 1000)} ms`
                           : `${Math.floor(videoDuration)} s`}
@@ -1010,7 +1016,7 @@ const UploadModal = ({ onClose, onSuccess }) => {
                 </Grid>
 
                 {/* Editable Properties */}
-                <Typography variant="subtitle1" gutterBottom sx={{ color: 'rgba(0, 0, 0, 0.6)', fontWeight: 'bold', mb: 1 }}>
+                <Typography variant="subtitle1" gutterBottom sx={{ color: textMuted, fontWeight: 'bold', mb: 1 }}>
                   Configurações de Processamento
                 </Typography>
 
@@ -1019,10 +1025,8 @@ const UploadModal = ({ onClose, onSuccess }) => {
                   <Box sx={{ width: '25%', minWidth: 0 }}>
                     <FormControl fullWidth variant="outlined" size="small">
                       <InputLabel id="quality-label" sx={{
-                        color: 'rgba(0, 0, 0, 0.6)',
-                        '&.Mui-focused': {
-                          color: '#5a3d9a'
-                        }
+                        color: textMuted,
+                        '&.Mui-focused': { color: isDark ? '#a5b4fc' : '#5a3d9a' }
                       }}>Tamanho</InputLabel>
                       <Select
                         labelId="quality-label"
@@ -1033,19 +1037,10 @@ const UploadModal = ({ onClose, onSuccess }) => {
                         label="Tamanho"
                         variant="outlined"
                         sx={{
-                          color: 'rgba(0, 0, 0, 0.6)',
-                          '& .MuiOutlinedInput-notchedOutline': {
-                            borderColor: 'rgba(0, 0, 0, 0.6)'
-                          },
-                          '&:hover .MuiOutlinedInput-notchedOutline': {
-                            borderColor: '#5a3d9a'
-                          },
-                          '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                            borderColor: '#5a3d9a'
-                          },
-                          '&.Mui-focused': {
-                            color: '#5a3d9a'
-                          }
+                          color: 'text.primary',
+                          '& .MuiOutlinedInput-notchedOutline': { borderColor: 'divider' },
+                          '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: isDark ? '#a5b4fc' : '#5a3d9a' },
+                          '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: isDark ? '#a5b4fc' : '#5a3d9a', borderWidth: 2 },
                         }}
                       >
                         <MenuItem value="original">Original</MenuItem>
@@ -1062,10 +1057,10 @@ const UploadModal = ({ onClose, onSuccess }) => {
                       </Select>
                     </FormControl>
                     {videoResolution.height > 0 && (
-                      <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block', color: 'rgba(0, 0, 0, 0.6)' }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
                         Resolução: {videoResolution.width}x{videoResolution.height}
                         {calculateResizePreview() && (
-                          <div style={{ marginTop: '4px', color: 'rgba(0, 0, 0, 0.6)' }}>
+                          <div style={{ marginTop: '4px' }}>
                             <strong>Novo tamanho: {calculateResizePreview().replace('Novo Tamanho: ', '')}</strong>
                           </div>
                         )}
@@ -1074,7 +1069,7 @@ const UploadModal = ({ onClose, onSuccess }) => {
                   </Box>
 
                   <Box sx={{ width: '75%', minWidth: 0 }}>
-                    <Typography gutterBottom sx={{ color: 'rgba(0, 0, 0, 0.6)', fontWeight: 'bold', mb: 1 }}>
+                    <Typography gutterBottom sx={{ color: textMuted, fontWeight: 'bold', mb: 1 }}>
                       Qualidade: <strong>{formData.qualityOutputLevel}%</strong>
                     </Typography>
                     <Slider
@@ -1089,21 +1084,14 @@ const UploadModal = ({ onClose, onSuccess }) => {
                       size="medium"
                       sx={{
                         width: '100%',
-                        '& .MuiSlider-rail': {
-                          background: 'linear-gradient(135deg, #4c51bf 0%, #5a3d9a 100%)',
-                          opacity: 0.3
-                        },
-                        '& .MuiSlider-track': {
-                          background: 'linear-gradient(135deg, #4c51bf 0%, #5a3d9a 100%)',
-                          border: 'none'
-                        },
-                        '& .MuiSlider-thumb': {
-                          backgroundColor: '#4c51bf',
-                          boxShadow: '0 0 0 8px rgba(76, 81, 191, 0.16)'
-                        }
+                        '& .MuiSlider-rail': { background: 'linear-gradient(135deg, #4c51bf 0%, #5a3d9a 100%)', opacity: isDark ? 0.6 : 0.3 },
+                        '& .MuiSlider-track': { background: 'linear-gradient(135deg, #4c51bf 0%, #5a3d9a 100%)', border: 'none' },
+                        '& .MuiSlider-thumb': { backgroundColor: isDark ? '#a5b4fc' : '#4c51bf', boxShadow: `0 0 0 8px ${isDark ? 'rgba(165,180,252,0.16)' : 'rgba(76,81,191,0.16)'}` },
+                        '& .MuiSlider-markLabel': { color: textMuted },
+                        '& .MuiSlider-valueLabel': { bgcolor: isDark ? '#a5b4fc' : '#4c51bf', color: isDark ? '#0d1117' : 'white' },
                       }}
                     />
-                    <Typography variant="caption" color="text.secondary" sx={{ color: 'rgba(0, 0, 0, 0.6)' }}>
+                    <Typography variant="caption" color="text.secondary">
                       Qualidade de saída (10-49% - Baixa | 50-74% - Média | 75-100% - Alta)
                     </Typography>
                   </Box>
@@ -1114,10 +1102,8 @@ const UploadModal = ({ onClose, onSuccess }) => {
                   <Box sx={{ width: '25%', minWidth: 0 }}>
                     <FormControl fullWidth variant="outlined" size="small">
                       <InputLabel id="timeUnit-label" sx={{
-                        color: 'rgba(0, 0, 0, 0.6)',
-                        '&.Mui-focused': {
-                          color: '#5a3d9a'
-                        }
+                        color: textMuted,
+                        '&.Mui-focused': { color: isDark ? '#a5b4fc' : '#5a3d9a' }
                       }}>Unidade *</InputLabel>
                       <Select
                         labelId="timeUnit-label"
@@ -1128,19 +1114,10 @@ const UploadModal = ({ onClose, onSuccess }) => {
                         label="Unidade *"
                         variant="outlined"
                         sx={{
-                          color: 'rgba(0, 0, 0, 0.6)',
-                          '& .MuiOutlinedInput-notchedOutline': {
-                            borderColor: 'rgba(0, 0, 0, 0.6)'
-                          },
-                          '&:hover .MuiOutlinedInput-notchedOutline': {
-                            borderColor: '#5a3d9a'
-                          },
-                          '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                            borderColor: '#5a3d9a'
-                          },
-                          '&.Mui-focused': {
-                            color: '#5a3d9a'
-                          }
+                          color: 'text.primary',
+                          '& .MuiOutlinedInput-notchedOutline': { borderColor: 'divider' },
+                          '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: isDark ? '#a5b4fc' : '#5a3d9a' },
+                          '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: isDark ? '#a5b4fc' : '#5a3d9a', borderWidth: 2 },
                         }}
                       >
                         <MenuItem value="seconds">Segundos</MenuItem>
@@ -1150,13 +1127,13 @@ const UploadModal = ({ onClose, onSuccess }) => {
                   </Box>
 
                   <Box sx={{ width: '75%', minWidth: 0 }}>
-                    <Typography variant="body2" sx={{ color: 'rgba(0, 0, 0, 0.6)', fontWeight: 'bold', mb: 1 }}>Trecho de Captura *</Typography>
+                    <Typography variant="body2" sx={{ color: textMuted, fontWeight: 'bold', mb: 1 }}>Trecho de Captura *</Typography>
                     <Box sx={{ width: '100%' }}>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                        <Typography variant="caption" sx={{ color: 'rgba(0, 0, 0, 0.6)' }}>
+                        <Typography variant="caption" sx={{ color: textMuted }}>
                           Início: <strong>{formData.startTime}</strong>
                         </Typography>
-                        <Typography variant="caption" sx={{ color: 'rgba(0, 0, 0, 0.6)' }}>
+                        <Typography variant="caption" sx={{ color: textMuted }}>
                           Fim: <strong>{formData.endTime}</strong>
                         </Typography>
                       </Box>
@@ -1207,20 +1184,21 @@ const UploadModal = ({ onClose, onSuccess }) => {
                           width: '100%',
                           '& .MuiSlider-rail': {
                             background: 'linear-gradient(135deg, #4c51bf 0%, #5a3d9a 100%)',
-                            opacity: 0.3
+                            opacity: isDark ? 0.6 : 0.3
                           },
                           '& .MuiSlider-track': {
                             background: 'linear-gradient(135deg, #4c51bf 0%, #5a3d9a 100%)',
                             border: 'none'
                           },
                           '& .MuiSlider-thumb': {
-                            backgroundColor: '#4c51bf',
-                            boxShadow: '0 0 0 8px rgba(76, 81, 191, 0.16)'
-                          }
+                            backgroundColor: isDark ? '#a5b4fc' : '#4c51bf',
+                            boxShadow: `0 0 0 8px ${isDark ? 'rgba(165,180,252,0.16)' : 'rgba(76,81,191,0.16)'}`
+                          },
+                          '& .MuiSlider-valueLabel': { bgcolor: isDark ? '#a5b4fc' : '#4c51bf', color: isDark ? '#0d1117' : 'white' },
                         }}
                       />
                       {isMultipleIntervals(formData.interval) && (
-                        <Typography variant="caption" color="text.secondary" sx={{ color: 'rgba(0, 0, 0, 0.6)', mt: 0.5, display: 'block' }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
                           Bloqueado: múltiplos intervalos definidos
                         </Typography>
                       )}
@@ -1239,45 +1217,23 @@ const UploadModal = ({ onClose, onSuccess }) => {
                     value={formData.interval}
                     onChange={handleInputChange}
                     error={!!validationErrors.interval}
-                    helperText={
-                      validationErrors.interval ? (
-                        validationErrors.interval
-                      ) : (
-                        <>
-                          Único valor: captura recorrente (Ex: 10). Valores separados por vírgula: momentos específicos (Ex: 10,21,33)
-                        </>
-                      )
-                    }
                     placeholder="Ex: 5 ou 10,20,30,40"
                     variant="outlined"
                     slotProps={{
                       inputLabel: {
                         sx: {
-                          color: 'rgba(0, 0, 0, 0.6)',
-                          '&.Mui-focused': {
-                            color: '#5a3d9a'
-                          }
+                          color: textMuted,
+                          '&.Mui-focused': { color: isDark ? '#a5b4fc' : '#5a3d9a' }
                         }
                       }
                     }}
                     sx={{
-                      '& .MuiInputBase-input::placeholder': {
-                        color: 'rgba(0, 0, 0, 0.6)',
-                        opacity: 0.6
-                      },
-                      '& .MuiInputBase-input': {
-                        color: 'rgba(0, 0, 0, 0.6)'
-                      },
+                      '& .MuiInputBase-input::placeholder': { color: textMuted, opacity: 0.6 },
+                      '& .MuiInputBase-input': { color: 'text.primary' },
+                      '& .MuiFormHelperText-root': { display: 'none' },
                       '& .MuiOutlinedInput-root': {
-                        '&:hover fieldset': {
-                          borderColor: '#5a3d9a'
-                        },
-                        '&.Mui-focused fieldset': {
-                          borderColor: '#5a3d9a'
-                        },
-                        '&.Mui-focused input': {
-                          color: '#5a3d9a'
-                        }
+                        '&:hover fieldset': { borderColor: isDark ? '#a5b4fc' : '#5a3d9a' },
+                        '&.Mui-focused fieldset': { borderColor: isDark ? '#a5b4fc' : '#5a3d9a', borderWidth: 2 },
                       }
                     }}
                   />
@@ -1299,27 +1255,27 @@ const UploadModal = ({ onClose, onSuccess }) => {
       <DialogActions sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 1 }}>
         <Box sx={{ flex: 1 }}>
           {!uploading && validationErrors.interval && (
-            <Alert severity="error" sx={{ m: 0, fontSize: '0.75rem', '& .MuiAlert-message': { fontSize: '0.75rem' } }}>
+            <Alert severity="error" sx={{ m: 0, py: 0, fontSize: '0.72rem', '& .MuiAlert-message': { fontSize: '0.72rem', py: 0.5 }, '& .MuiAlert-icon': { py: 0.5 }, ...(isDark && { bgcolor: '#3b1a1a', color: '#ffb3b3', '& .MuiAlert-icon': { color: '#ff6b6b', py: 0.5 } }) }}>
               {validationErrors.interval}
             </Alert>
           )}
           {!uploading && validationErrors.maxImages && (
-            <Alert severity="error" sx={{ m: 0, fontWeight: 'bold', fontSize: '0.75rem', '& .MuiAlert-message': { fontSize: '0.75rem' } }}>
+            <Alert severity="error" sx={{ m: 0, py: 0, fontWeight: 'bold', fontSize: '0.72rem', '& .MuiAlert-message': { fontSize: '0.72rem', py: 0.5 }, '& .MuiAlert-icon': { py: 0.5 }, ...(isDark && { bgcolor: '#3b1a1a', color: '#ffb3b3', '& .MuiAlert-icon': { color: '#ff6b6b', py: 0.5 } }) }}>
               {validationErrors.maxImages}
             </Alert>
           )}
           {!uploading && validationErrors.startTime && (
-            <Alert severity="error" sx={{ m: 0, fontSize: '0.75rem', '& .MuiAlert-message': { fontSize: '0.75rem' } }}>
+            <Alert severity="error" sx={{ m: 0, py: 0, fontSize: '0.72rem', '& .MuiAlert-message': { fontSize: '0.72rem', py: 0.5 }, '& .MuiAlert-icon': { py: 0.5 }, ...(isDark && { bgcolor: '#3b1a1a', color: '#ffb3b3', '& .MuiAlert-icon': { color: '#ff6b6b', py: 0.5 } }) }}>
               {validationErrors.startTime}
             </Alert>
           )}
           {!uploading && validationErrors.endTime && (
-            <Alert severity="error" sx={{ m: 0, fontSize: '0.75rem', '& .MuiAlert-message': { fontSize: '0.75rem' } }}>
+            <Alert severity="error" sx={{ m: 0, py: 0, fontSize: '0.72rem', '& .MuiAlert-message': { fontSize: '0.72rem', py: 0.5 }, '& .MuiAlert-icon': { py: 0.5 }, ...(isDark && { bgcolor: '#3b1a1a', color: '#ffb3b3', '& .MuiAlert-icon': { color: '#ff6b6b', py: 0.5 } }) }}>
               {validationErrors.endTime}
             </Alert>
           )}
           {!uploading && calculatePreview() && !validationErrors.interval && !validationErrors.maxImages && (
-            <Alert severity="success" sx={{ m: 0, fontSize: '0.75rem', '& .MuiAlert-message': { fontSize: '0.75rem' } }}>
+            <Alert severity="success" sx={{ m: 0, py: 0, fontSize: '0.72rem', '& .MuiAlert-message': { fontSize: '0.72rem', py: 0.5 }, '& .MuiAlert-icon': { py: 0.5 }, ...(isDark && { bgcolor: '#1a3b1a', color: '#b3ffb3', '& .MuiAlert-icon': { color: '#69e069', py: 0.5 } }) }}>
               {calculatePreview()}
             </Alert>
           )}
@@ -1327,8 +1283,16 @@ const UploadModal = ({ onClose, onSuccess }) => {
         <Box sx={{ display: 'flex', gap: 1 }}>
           <Button
             variant="outlined"
-            color="secondary"
             onClick={handleCancelUpload}
+            sx={{
+              borderColor: isDark ? '#f48fb1' : 'secondary.main',
+              color: isDark ? '#f48fb1' : 'secondary.main',
+              '&:hover': {
+                borderColor: isDark ? '#f06292' : 'secondary.dark',
+                bgcolor: isDark ? 'rgba(244,143,177,0.1)' : 'rgba(0,0,0,0.04)',
+                color: isDark ? '#f06292' : 'secondary.dark',
+              }
+            }}
           >
             Cancelar
           </Button>
