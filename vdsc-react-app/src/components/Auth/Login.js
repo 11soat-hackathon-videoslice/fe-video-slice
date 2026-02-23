@@ -23,6 +23,8 @@ const Login = ({ onSuccess, onSwitchToRegister, onSwitchToForgotPassword }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const logoSrc = isDark ? '/logo3.png' : '/logo.png';
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -42,7 +44,7 @@ const Login = ({ onSuccess, onSwitchToRegister, onSwitchToForgotPassword }) => {
       <Container maxWidth="sm">
         <Card elevation={3} sx={{ p: 3, borderRadius: 2 }}>
           <Box sx={{ textAlign: 'center', mb: 2 }}>
-            <Box component="img" src="/logo3.png" alt="Video Slice" sx={{ width: 140, height: 140, objectFit: 'contain', mb: 1.5 }} />
+            <Box component="img" src={logoSrc} alt="Video Slice" sx={{ width: 140, height: 140, objectFit: 'contain', mb: 1.5 }} />
             <Typography variant="h5" component="h2" sx={{ fontWeight: 700, color: 'text.primary', mb: 2 }}>
               Login
             </Typography>
