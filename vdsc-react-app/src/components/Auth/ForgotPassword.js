@@ -69,9 +69,10 @@ const ForgotPassword = ({ onSwitchToLogin }) => {
     } finally { setLoading(false); }
   };
 
+  const logoSrc = isDark ? '/logo3.png' : '/logo.png';
   const logo = (
     <Box sx={{ textAlign: 'center', mb: 2 }}>
-      <Box component="img" src="/logo3.png" alt="Video Slice" sx={{ width: 140, height: 140, objectFit: 'contain', mb: 1.5 }} />
+      <Box component="img" src={logoSrc} alt="Video Slice" sx={{ width: 140, height: 140, objectFit: 'contain', mb: 1.5 }} />
     </Box>
   );
 
