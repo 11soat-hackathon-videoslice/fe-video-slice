@@ -2,6 +2,15 @@
 
 [![Build, Test and Deploy vdsc-prd-app-web (Amplify)](https://github.com/11soat-hackathon-videoslice/fe-video-slice/actions/workflows/build_test_deploy_amplify.yaml/badge.svg)](https://github.com/11soat-hackathon-videoslice/fe-video-slice/actions/workflows/build_test_deploy_amplify.yaml)
 
+## Índice
+
+- [Descrição](#descrição)
+- [Funcionalidades](#funcionalidades)
+- [Ambientes](#ambientes)
+- [Tecnologias](#tecnologias)
+- [Como executar localmente](#como-executar-localmente)
+- [Como executar o build](#como-executar-o-build)
+
 ## Descrição
 
 Frontend do sistema **Video Slice**, desenvolvido em React. A aplicação permite que usuários façam upload de vídeos, acompanhem o status do processamento e realizem o download dos frames extraídos em formato `.zip`.
@@ -63,4 +72,3 @@ npm run build
 ## Nota sobre Avaliação
 
 > ⚠️ O frontend **não é um requisito de avaliação** do projeto. Por este motivo, não foram adicionados testes unitários nem configuração de quality gate (SonarQube) para este módulo.
-
