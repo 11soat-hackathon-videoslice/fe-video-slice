@@ -74,8 +74,8 @@ const Dashboard = ({ onSignOut, darkMode, onToggleDarkMode }) => {
 
   const handleDownload = async (video) => {
     try {
-      // Format: fileName.zip
-      const downloadFileName = `${video.fileName}.zip`;
+      // Format: fileName_videoId.zip
+      const downloadFileName = `${video.fileName}_${video.id}.zip`;
       await videoAPI.downloadVideo(downloadFileName);
     } catch (err) {
       console.error('Error downloading video:', err);
